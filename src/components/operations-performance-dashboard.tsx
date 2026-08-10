@@ -4,16 +4,17 @@ import Link from "next/link";
 import { AlertTriangle, BellRing, CheckCircle2, ClipboardCheck, Clock3, LoaderCircle, MapPin } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { OperationsAlertRecord, OperationsChecklistRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { calculateOperationsPerformance } from "@/lib/operations/performance";
 import { formatOperationsDate, readOperationsAlerts, readOperationsChecklists } from "@/lib/operations/storage";
 
-export function OperationsPerformanceDashboard() {
-  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(null);
-  const [alerts, setAlerts] = useState<OperationsAlertRecord[] | null>(null);
+export function OperationsPerformanceDashboard({ initialChecklists = [], initialAlerts = [], persistence = "demo", initialError = "" }: { initialChecklists?: OperationsChecklistRecord[]; initialAlerts?: OperationsAlertRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(persistence === "supabase" ? initialChecklists : null);
+  const [alerts, setAlerts] = useState<OperationsAlertRecord[] | null>(persistence === "supabase" ? initialAlerts : null);
   const [location, setLocation] = useState("All locations");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); setAlerts(readOperationsAlerts()); } catch { setError("Operations performance could not be loaded from this browser."); setChecklists([]); setAlerts([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); setAlerts(readOperationsAlerts()); } catch { setError("Operations performance could not be loaded from this browser."); setChecklists([]); setAlerts([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
 
   if (checklists === null || alerts === null) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading operations performance</h2><p>Reviewing saved checklists and alert history.</p></div></div>;
   if (error) return <div className="card operations-performance-state"><AlertTriangle size={24}/><div><h2>Performance unavailable</h2><p>{error}</p></div></div>;

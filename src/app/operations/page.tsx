@@ -1,12 +1,16 @@
 import { AlertTriangle, BookOpenCheck, CheckCircle2, ClipboardCheck, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
-import { operationsAlerts, operationsChecklists, operationsProcedures } from "@/lib/operations/data";
+import { getOperationsWorkspace } from "@/lib/operations/repository";
 
-export default function OperationsDashboardPage() {
+export default async function OperationsDashboardPage() {
+  const data = await getOperationsWorkspace();
+  const operationsChecklists = data.checklists.map((item) => { const completed = item.steps.filter((step) => step.complete).length; const complete = completed === item.steps.length && item.steps.length > 0; return { id: item.id, title: item.title, location: item.location, owner: item.owner, due: item.dueDate, completed, total: item.steps.length, status: complete ? "Complete" : completed ? "On track" : "Needs attention" }; });
+  const operationsProcedures = data.procedures.filter((item) => item.status === "Published").slice(0, 5).map((item) => ({ title: item.title, category: item.category, owner: item.owner, updated: `Version ${item.version}` }));
+  const operationsAlerts = data.alerts.filter((item) => item.status !== "Resolved").slice(0, 5).map((item) => ({ title: item.title, detail: item.detail, level: item.severity === "High" || item.severity === "Critical" ? "Needs attention" : item.status, location: item.location }));
   const completedSteps = operationsChecklists.reduce((total, checklist) => total + checklist.completed, 0);
   const totalSteps = operationsChecklists.reduce((total, checklist) => total + checklist.total, 0);
-  const completion = Math.round(completedSteps / totalSteps * 100);
+  const completion = totalSteps ? Math.round(completedSteps / totalSteps * 100) : 0;
   const needsAttention = operationsChecklists.filter((checklist) => checklist.status === "Needs attention").length;
   return <AppShell title="Operations Assistant">
     <PageHeader eyebrow="Run the day with confidence" title="Keep every location aligned and accountable" description="See today’s operational work, find the right procedure, and address exceptions before they become customer problems." />

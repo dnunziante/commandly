@@ -2,14 +2,16 @@
 
 import { AlertTriangle, BookOpenCheck, CheckCircle2, FileEdit, LoaderCircle, Plus, Search, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { saveOperationsProcedure } from "@/app/operations/actions";
 import type { OperationsProcedureRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { readOperationsProcedures, writeOperationsProcedures } from "@/lib/operations/storage";
 
 const categories: Array<"All categories" | OperationsProcedureRecord["category"]> = ["All categories", "Delivery", "Sales floor", "Store operations", "Service", "Safety"];
 
-export function OperationsProcedureManager() {
-  const [procedures, setProcedures] = useState<OperationsProcedureRecord[] | null>(null);
-  const [error, setError] = useState("");
+export function OperationsProcedureManager({ initialProcedures = [], persistence = "demo", initialError = "" }: { initialProcedures?: OperationsProcedureRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+  const [procedures, setProcedures] = useState<OperationsProcedureRecord[] | null>(persistence === "supabase" ? initialProcedures : null);
+  const [error, setError] = useState(initialError);
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<(typeof categories)[number]>("All categories");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -20,18 +22,20 @@ export function OperationsProcedureManager() {
   const [stepsText, setStepsText] = useState("");
   const [status, setStatus] = useState<OperationsProcedureRecord["status"]>("Draft");
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setProcedures(readOperationsProcedures()); } catch { setError("Saved procedures could not be loaded from this browser."); setProcedures([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setProcedures(readOperationsProcedures()); } catch { setError("Saved procedures could not be loaded from this browser."); setProcedures([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
   const filtered = useMemo(() => (procedures ?? []).filter((procedure) => (categoryFilter === "All categories" || procedure.category === categoryFilter) && `${procedure.title} ${procedure.summary} ${procedure.owner}`.toLowerCase().includes(search.trim().toLowerCase())), [procedures, search, categoryFilter]);
 
   function saveLibrary(next: OperationsProcedureRecord[]) { try { writeOperationsProcedures(next); setProcedures(next); setError(""); } catch { setError("Procedure changes could not be saved in this browser."); } }
   function clearEditor() { setEditingId(null); setTitle(""); setCategory("Store operations"); setOwner(""); setSummary(""); setStepsText(""); setStatus("Draft"); }
   function editProcedure(procedure: OperationsProcedureRecord) { setEditingId(procedure.id); setTitle(procedure.title); setCategory(procedure.category); setOwner(procedure.owner); setSummary(procedure.summary); setStepsText(procedure.steps.join("\n")); setStatus(procedure.status); }
-  function saveProcedure(event: React.FormEvent<HTMLFormElement>) {
+  async function saveProcedure(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); const steps = stepsText.split("\n").map((step) => step.trim()).filter(Boolean);
     if (title.trim().length < 2 || owner.trim().length < 2 || summary.trim().length < 10 || !steps.length) { setError("Add a title, owner, useful summary, and at least one procedure step."); return; }
     const existing = procedures?.find((procedure) => procedure.id === editingId);
-    const record: OperationsProcedureRecord = { id: existing?.id ?? crypto.randomUUID(), title: title.trim(), category, owner: owner.trim(), summary: summary.trim(), steps, status, version: existing ? existing.version + 1 : 1, updatedAt: new Date().toISOString() };
-    saveLibrary([record, ...(procedures ?? []).filter((procedure) => procedure.id !== record.id)]); setEditingId(record.id); setError("");
+    let record: OperationsProcedureRecord = { id: existing?.id ?? `new-${crypto.randomUUID()}`, title: title.trim(), category, owner: owner.trim(), summary: summary.trim(), steps, status, version: existing ? existing.version + 1 : 1, updatedAt: new Date().toISOString() };
+    if (persistence === "supabase") { const result = await saveOperationsProcedure(record); if (result.error || !result.record) { setError(result.error ?? "Procedure could not be saved."); return; } record = result.record; setProcedures([record, ...(procedures ?? []).filter((procedure) => procedure.id !== record.id && procedure.id !== existing?.id)]); }
+    else saveLibrary([record, ...(procedures ?? []).filter((procedure) => procedure.id !== record.id)]);
+    setEditingId(record.id); setError("");
   }
 
   if (procedures === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading procedure library</h2><p>Checking this browser for saved procedures.</p></div></div>;

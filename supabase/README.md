@@ -52,3 +52,7 @@ They create tenant-scoped scenarios, configurable C.L.O.S.E.R. weights, multi-ro
 `20260809040651_persistent_growth_action_plans.sql` adds tenant-scoped Growth Advisor action plans and tasks with explicit Data API grants and row-level security.
 `20260809042235_tenant_growth_scoring_configuration.sql` adds administrator-controlled, tenant-scoped deterministic scoring weights and opportunity ratings.
 `20260809043934_tenant_growth_opportunity_management.sql` adds tenant-scoped Growth Advisor opportunities with administrator lifecycle controls.
+
+## Operations Assistant foundation
+
+`20260810011434_operations_multitenant_foundation.sql` adds tenant-scoped persistence for Operations procedures, recurring schedules, checklists, alerts and status history, shift handoffs, and incidents. `20260810012437_optimize_operations_foundation.sql` adds covering indexes for tenant-safe composite relationships and removes an overlapping procedure-step policy. Neither migration seeds sample data.

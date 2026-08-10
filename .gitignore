@@ -1,0 +1,13 @@
+node_modules
+.next
+.next-stale-*
+out
+.env
+.env.local
+.env.*.local
+.vercel
+.pnpm-store
+*.tsbuildinfo
+*-Personal.*
+*.log
+.DS_Store

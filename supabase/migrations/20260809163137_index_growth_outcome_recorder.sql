@@ -1,0 +1,1 @@
+create index growth_plan_outcomes_recorded_by_idx on public.growth_plan_outcomes(recorded_by);

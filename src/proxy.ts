@@ -1,0 +1,84 @@
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
+import { isLocalDemoMode } from "@/lib/supabase/config";
+
+export async function proxy(request: NextRequest) {
+  if (isLocalDemoMode()) return NextResponse.next();
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  // Preserve the local prototype until a Supabase project is configured.
+  if (!url || !publishableKey) return NextResponse.next();
+
+  let response = NextResponse.next({ request });
+  const supabase = createServerClient(url, publishableKey, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
+        response = NextResponse.next({ request });
+        cookiesToSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options),
+        );
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.searchParams.set("next", request.nextUrl.pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const [{ data: profile }, { data: membership }] = await Promise.all([
+    supabase.from("profiles").select("is_platform_owner").eq("id", user.id).maybeSingle(),
+    supabase
+      .from("organization_memberships")
+      .select("role")
+      .eq("user_id", user.id)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  if (!profile?.is_platform_owner && !membership) {
+    const noAccessUrl = request.nextUrl.clone();
+    noAccessUrl.pathname = "/no-access";
+    noAccessUrl.search = "";
+    return NextResponse.redirect(noAccessUrl);
+  }
+
+  if (
+    request.nextUrl.pathname.startsWith("/admin") &&
+    !profile?.is_platform_owner &&
+    membership?.role !== "tenant_admin"
+  ) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  return response;
+}
+
+export const config = {
+  matcher: [
+    "/dashboard/:path*",
+    "/assistant/:path*",
+    "/products/:path*",
+    "/comparisons/:path*",
+    "/objections/:path*",
+    "/email/:path*",
+    "/text/:path*",
+    "/role-play/:path*",
+    "/training/:path*",
+    "/knowledge-base/:path*",
+    "/analytics/:path*",
+    "/admin/:path*",
+    "/coach/:path*",
+  ],
+};

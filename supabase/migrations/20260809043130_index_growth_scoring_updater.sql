@@ -1,0 +1,1 @@
+create index growth_scoring_configs_updated_by_idx on public.growth_scoring_configs(updated_by);

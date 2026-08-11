@@ -9,7 +9,7 @@ import { getNextScheduleDate } from "@/lib/operations/schedules";
 import type { OperationsPersistence } from "@/lib/operations/repository";
 import { formatOperationsDate, readOperationsChecklists, readOperationsProcedures, readOperationsSchedules, writeOperationsChecklists, writeOperationsSchedules } from "@/lib/operations/storage";
 
-export function OperationsScheduleManager({ initialSchedules = [], initialProcedures = [], persistence = "demo", initialError = "" }: { initialSchedules?: OperationsScheduleRecord[]; initialProcedures?: OperationsProcedureRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+export function OperationsScheduleManager({ initialSchedules = [], initialProcedures = [], persistence = "demo", initialError = "", canManage = true }: { initialSchedules?: OperationsScheduleRecord[]; initialProcedures?: OperationsProcedureRecord[]; persistence?: OperationsPersistence; initialError?: string; canManage?: boolean }) {
   const publishedInitial = initialProcedures.filter((item) => item.status === "Published");
   const [schedules, setSchedules] = useState<OperationsScheduleRecord[] | null>(persistence === "supabase" ? initialSchedules : null);
   const [procedures, setProcedures] = useState<OperationsProcedureRecord[]>(persistence === "supabase" ? publishedInitial : []);
@@ -58,6 +58,11 @@ export function OperationsScheduleManager({ initialSchedules = [], initialProced
 
   if (schedules === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading recurring schedules</h2><p>Checking this browser for saved procedures and schedules.</p></div></div>;
   const active = schedules?.filter((item) => item.status === "Active").length ?? 0;
+
+  if (!canManage) return <div className="operations-schedule-stack">
+    {error && <p className="form-error operations-schedule-message"><AlertTriangle size={15}/>{error}</p>}
+    <section><div className="section-heading operations-list-heading"><div><h2>Recurring work</h2><p>{schedules?.length ?? 0} schedules</p></div></div>{schedules?.length ? <div className="operations-schedule-list">{schedules.map((schedule) => <article className="card operations-schedule-card" key={schedule.id}><div className="metric-row"><div className="operations-alert-badges"><span className={`badge ${schedule.status === "Active" ? "" : "amber"}`}>{schedule.status}</span><span className="badge blue">{schedule.frequency}</span></div><small>Next {formatOperationsDate(schedule.nextRunDate)}</small></div><h2>{schedule.procedureTitle}</h2><div className="operations-assigned-meta"><span><MapPin size={14}/>{schedule.location}</span><span><UserRound size={14}/>{schedule.owner}</span><span><CalendarClock size={14}/>Every {schedule.frequency.toLowerCase()}</span></div><p>{schedule.lastGeneratedAt ? `Last generated ${new Date(schedule.lastGeneratedAt).toLocaleString()}` : "No checklist generated yet."}</p></article>)}</div> : <div className="card output empty"><div><CalendarClock size={28}/><h2>No recurring schedules</h2><p>A manager has not created recurring work yet.</p></div></div>}</section>
+  </div>;
 
   return <div className="operations-schedule-stack">
     <section className="grid grid-3 operations-schedule-metrics" aria-label="Schedule summary"><div className="card"><div className="metric-row"><span>Active schedules</span><span className="metric-icon"><CalendarClock size={18}/></span></div><div className="metric">{active}</div><span className="delta">Ready for the next occurrence</span></div><div className="card"><div className="metric-row"><span>Paused</span><span className="metric-icon"><CirclePause size={18}/></span></div><div className="metric">{(schedules?.length ?? 0) - active}</div><span className="delta">Retained without generating work</span></div><div className="card"><div className="metric-row"><span>Published procedures</span><span className="metric-icon"><CheckCircle2 size={18}/></span></div><div className="metric">{procedures.length}</div><span className="delta">Available as schedule templates</span></div></section>

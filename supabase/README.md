@@ -35,7 +35,7 @@ The user can then sign in at `/login`. Users without an active organization memb
 
 - `platform_owner`: stored only on the user profile; controls platform methodology and all tenants.
 - `tenant_admin`: manages one tenant's members, locations, and customer instructions.
-- `manager`: tenant member with future team-management permissions.
+- `manager`: tenant member who can manage Operations procedures and recurring schedules, with additional team-management permissions added by later milestones.
 - `salesperson`: tenant member with standard application access.
 
 Platform methodology and tenant instructions live in separate tables and have separate row-level security policies.
@@ -56,3 +56,5 @@ They create tenant-scoped scenarios, configurable C.L.O.S.E.R. weights, multi-ro
 ## Operations Assistant foundation
 
 `20260810011434_operations_multitenant_foundation.sql` adds tenant-scoped persistence for Operations procedures, recurring schedules, checklists, alerts and status history, shift handoffs, and incidents. `20260810012437_optimize_operations_foundation.sql` adds covering indexes for tenant-safe composite relationships and removes an overlapping procedure-step policy. Neither migration seeds sample data.
+
+`20260810130000_process_improvement_foundation.sql` adds tenant-scoped improvement submissions, status history, Five Whys, corrective actions, and before/after measurements with employee ownership and manager-review RLS. `20260810131000_optimize_process_improvement_foundation.sql` adds the foreign-key indexes identified by the database advisor. `20260810132000_refine_process_improvement_manager_policies.sql` preserves creator attribution while allowing authorized managers to continue one another's improvement work. None of these migrations seed customer data. Local demo mode continues to use sample records.

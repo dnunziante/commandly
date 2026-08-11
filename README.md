@@ -22,6 +22,7 @@ Set `LOCAL_DEMO_MODE=true` only in `.env.development.local` to bypass login whil
 ```bash
 pnpm lint
 pnpm typecheck
+pnpm test
 pnpm build
 ```
 
@@ -35,8 +36,14 @@ pnpm build
 - Training, knowledge base, analytics, and administration screens
 - Loading, empty, and error-state examples
 
+## Current foundation
+
+Supabase authentication and tenant isolation are implemented for Sales, Coach, Growth, and Operations routes. Operations procedure and recurring-schedule management is limited to managers, tenant administrators, and the platform owner in both the interface and server actions. See `supabase/README.md` for project setup and administrator provisioning.
+
+Products, Knowledge Base content, Sales Coach workflows, Growth plans, and Operations workflows support tenant-scoped persistence with a local demo fallback. OpenAI remains disconnected.
+
+The Operations Process Improvement module includes employee-friendly problem and idea submission, department assignment, manager review, ownership, Five Whys analysis, corrective action, before-and-after measurements, results, lessons learned, and a basic improvement dashboard. Authenticated work is stored in tenant-scoped Supabase tables; local demo mode continues to use sample data. Lean waste classification remains reserved in the internal model for a later manager-analysis milestone.
+
 ## Planned next milestone
 
-The Supabase authentication and tenant-isolation foundation is implemented. See `supabase/README.md` to connect a project and create the first BGC administrator.
-
-After tenant isolation is verified in a live Supabase project, the next milestone is persistent tenant-scoped products and knowledge-base content. OpenAI remains disconnected until that data boundary is proven.
+Complete final Operations checks and commit the milestone. OpenAI guidance remains a later, server-only milestone.

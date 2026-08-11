@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { getViewer } from "@/lib/auth/viewer";
+import { canManageOperations } from "@/lib/auth/permissions";
 import type { OperationsAlertRecord, OperationsChecklistRecord, OperationsHandoffRecord, OperationsIncidentRecord, OperationsProcedureRecord, OperationsScheduleRecord } from "@/lib/operations/data";
 import { getNextScheduleDate } from "@/lib/operations/schedules";
 import { createClient } from "@/lib/supabase/server";
 
 const dbValue = (value: string) => value.toLowerCase().replaceAll(" ", "_");
 async function context() { const viewer = await getViewer(); if (!viewer || viewer.demo) return null; return { viewer, supabase: await createClient() }; }
+async function managerContext() { const ctx = await context(); return ctx && canManageOperations(ctx.viewer.role) ? ctx : null; }
 function refreshOperations() { ["/operations", "/operations/checklists", "/operations/procedures", "/operations/alerts", "/operations/schedules", "/operations/calendar", "/operations/performance", "/operations/handoffs", "/operations/incidents"].forEach((path) => revalidatePath(path)); }
 
 export async function saveOperationsChecklist(input: Omit<OperationsChecklistRecord, "id" | "createdAt">) {
@@ -30,7 +32,7 @@ export async function toggleOperationsChecklistStep(checklistId: string, stepId:
 }
 
 export async function saveOperationsProcedure(input: OperationsProcedureRecord) {
-  const ctx = await context(); if (!ctx) return { error: "Sign in to manage shared procedures." };
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to manage procedures." };
   if (input.title.trim().length < 2 || input.owner.trim().length < 2 || input.summary.trim().length < 10 || !input.steps.length) return { error: "Complete the procedure details and steps." };
   const existing = !input.id.startsWith("new-");
   const query = existing ? ctx.supabase.from("operations_procedures").update({ title: input.title.trim(), category: input.category, owner: input.owner.trim(), summary: input.summary.trim(), status: dbValue(input.status), version: input.version }).eq("id", input.id).eq("organization_id", ctx.viewer.organizationId) : ctx.supabase.from("operations_procedures").insert({ organization_id: ctx.viewer.organizationId, title: input.title.trim(), category: input.category, owner: input.owner.trim(), summary: input.summary.trim(), status: dbValue(input.status), version: 1, created_by: ctx.viewer.id });
@@ -54,14 +56,14 @@ export async function setOperationsAlertStatus(alertId: string, status: Operatio
 }
 
 export async function saveOperationsSchedule(input: Omit<OperationsScheduleRecord, "id" | "createdAt" | "lastGeneratedAt" | "status">) {
-  const ctx = await context(); if (!ctx) return { error: "Sign in to manage shared schedules." };
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to manage schedules." };
   const { data, error } = await ctx.supabase.from("operations_schedules").insert({ organization_id: ctx.viewer.organizationId, procedure_id: input.procedureId, frequency: dbValue(input.frequency), location_name: input.location, owner: input.owner.trim(), next_run_date: input.nextRunDate, created_by: ctx.viewer.id }).select("id,created_at").single(); if (error || !data) return { error: error?.message ?? "Schedule could not be created." }; refreshOperations(); return { record: { ...input, id: data.id, status: "Active" as const, lastGeneratedAt: null, createdAt: data.created_at } };
 }
 
-export async function setOperationsScheduleStatus(scheduleId: string, status: OperationsScheduleRecord["status"]) { const ctx = await context(); if (!ctx) return { error: "Sign in to manage shared schedules." }; const { error } = await ctx.supabase.from("operations_schedules").update({ status: dbValue(status) }).eq("id", scheduleId).eq("organization_id", ctx.viewer.organizationId); if (error) return { error: error.message }; refreshOperations(); return {}; }
+export async function setOperationsScheduleStatus(scheduleId: string, status: OperationsScheduleRecord["status"]) { const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to manage schedules." }; const { error } = await ctx.supabase.from("operations_schedules").update({ status: dbValue(status) }).eq("id", scheduleId).eq("organization_id", ctx.viewer.organizationId); if (error) return { error: error.message }; refreshOperations(); return {}; }
 
 export async function generateOperationsChecklist(schedule: OperationsScheduleRecord) {
-  const ctx = await context(); if (!ctx) return { error: "Sign in to generate shared checklists." };
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to generate scheduled checklists." };
   const { data: steps, error } = await ctx.supabase.from("operations_procedure_steps").select("title,position").eq("procedure_id", schedule.procedureId).eq("organization_id", ctx.viewer.organizationId).order("position"); if (error || !steps?.length) return { error: error?.message ?? "The procedure has no steps." };
   const created = await saveOperationsChecklist({ title: `${schedule.procedureTitle} â€” ${schedule.location}`, location: schedule.location, owner: schedule.owner, dueDate: schedule.nextRunDate, steps: steps.map((step) => ({ id: "", title: step.title, complete: false })) }); if (created.error) return created;
   const now = new Date().toISOString(); const nextRunDate = getNextScheduleDate(schedule.nextRunDate, schedule.frequency);

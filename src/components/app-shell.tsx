@@ -35,6 +35,7 @@ const operationsLinks = [
   ["Task Calendar", "/operations/calendar", CalendarDays],
   ["Handoff Logs", "/operations/handoffs", ArrowRightLeft],
   ["Incident Reports", "/operations/incidents", ShieldAlert],
+  ["Process Improvement", "/operations/improvements", Lightbulb],
   ["Performance", "/operations/performance", Activity],
 ] as const;
 
@@ -98,7 +99,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
         </details>
         <details className="module-group" key={`operations-${pathname}`} open={operationsSectionActive}>
           <summary><span className="module-icon"><ClipboardCheck size={18}/></span><span>Operations Assistant</span><span className="live-badge">Prototype</span><ChevronDown className="module-chevron" size={16}/></summary>
-          <div className="module-links">{operationsLinks.map(([label, href, Icon]) => <Link className={pathname === href ? "active" : ""} href={href} key={href} onClick={() => setOpen(false)}><Icon size={18}/><span>{label}</span></Link>)}</div>
+          <div className="module-links">{operationsLinks.map(([label, href, Icon]) => <Link className={pathname === href || (href !== "/operations" && pathname.startsWith(`${href}/`)) ? "active" : ""} href={href} key={href} onClick={() => setOpen(false)}><Icon size={18}/><span>{label}</span></Link>)}</div>
         </details>
         {plannedModules.map(({ label, Icon, features }) => <details className="module-group planned" key={label}>
           <summary><span className="module-icon"><Icon size={18}/></span><span>{label}</span><span className="planned-badge">Planned</span><ChevronDown className="module-chevron" size={16}/></summary>

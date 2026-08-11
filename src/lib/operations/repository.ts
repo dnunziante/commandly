@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getViewer } from "@/lib/auth/viewer";
+import { canManageOperations } from "@/lib/auth/permissions";
 import {
   operationsAlertRecords,
   operationsChecklistRecords,
@@ -21,6 +22,7 @@ export type OperationsPersistence = "demo" | "supabase";
 export type OperationsWorkspace = {
   persistence: OperationsPersistence;
   error: string;
+  canManage: boolean;
   checklists: OperationsChecklistRecord[];
   procedures: OperationsProcedureRecord[];
   alerts: OperationsAlertRecord[];
@@ -34,7 +36,7 @@ const titleCase = (value: string) => value.split("_").map((part) => part[0]?.toU
 export async function getOperationsWorkspace(): Promise<OperationsWorkspace> {
   const viewer = await getViewer();
   if (!viewer || viewer.demo) return {
-    persistence: "demo", error: "", checklists: operationsChecklistRecords,
+    persistence: "demo", error: "", canManage: true, checklists: operationsChecklistRecords,
     procedures: operationsProcedureRecords, alerts: operationsAlertRecords,
     schedules: operationsScheduleRecords, handoffs: operationsHandoffRecords,
     incidents: operationsIncidentRecords,
@@ -75,5 +77,5 @@ export async function getOperationsWorkspace(): Promise<OperationsWorkspace> {
   const handoffs = (handoffsResult.data ?? []).map((row) => ({ id: row.id, location: row.location_name, fromShift: row.from_shift, toShift: row.to_shift, summary: row.summary, unresolvedIssues: row.unresolved_issues, decisions: row.decisions, owner: row.owner, status: titleCase(row.status) as OperationsHandoffRecord["status"], createdAt: row.created_at, updatedAt: row.updated_at }));
   const incidents = (incidentsResult.data ?? []).map((row) => ({ id: row.id, title: row.title, category: titleCase(row.category) as OperationsIncidentRecord["category"], severity: titleCase(row.severity) as OperationsIncidentRecord["severity"], location: row.location_name, occurredAt: row.occurred_at.slice(0, 16), reportedBy: row.reported_by_name, description: row.description, immediateAction: row.immediate_action, rootCause: row.root_cause, correctiveAction: row.corrective_action, owner: row.owner, dueDate: row.due_date, status: titleCase(row.status) as OperationsIncidentRecord["status"], createdAt: row.created_at, updatedAt: row.updated_at }));
 
-  return { persistence: "supabase", error: firstError?.message ?? "", checklists, procedures, alerts, schedules, handoffs, incidents };
+  return { persistence: "supabase", error: firstError?.message ?? "", canManage: canManageOperations(viewer.role), checklists, procedures, alerts, schedules, handoffs, incidents };
 }

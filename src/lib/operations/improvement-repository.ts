@@ -9,7 +9,8 @@ const titleCase = (value: string) => value.split("_").map((part) => part.charAt(
 
 export async function getImprovementWorkspace() {
   const viewer = await getViewer();
-  if (!viewer || viewer.demo) return { persistence: "demo" as const, items: processImprovements, canManage: true, error: "" };
+  if (viewer?.demo) return { persistence: "demo" as const, items: processImprovements, canManage: true, error: "" };
+  if (!viewer) return { persistence: "supabase" as const, items: [] as ProcessImprovement[], canManage: false, error: "Sign in to view improvement work." };
   const supabase = await createClient();
   const { data, error } = await supabase.from("operations_improvements").select("id,kind,title,description,department,location_name,frequency,impact,urgency,status,manager_decision,manager_note,owner_name,due_date,lean_waste,project_method,dmaic_phase,results,lessons_learned,created_at,profiles!operations_improvements_submitted_by_fkey(full_name),operations_improvement_whys(id,position,answer),operations_improvement_actions(id,description,owner_name,due_date,status),operations_improvement_measurements(id,phase,metric,value,unit,measured_at,verified_at)").eq("organization_id", viewer.organizationId).order("created_at", { ascending: false });
   if (error) return { persistence: "supabase" as const, items: [] as ProcessImprovement[], canManage: canManageOperations(viewer.role), error: error.message };

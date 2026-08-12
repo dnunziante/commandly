@@ -5,8 +5,12 @@ export function isSupabaseConfigured() {
   );
 }
 
+export function shouldUseLocalDemoMode(nodeEnvironment?: string, demoFlag?: string) {
+  return nodeEnvironment !== "production" && demoFlag === "true";
+}
+
 export function isLocalDemoMode() {
-  return process.env.NODE_ENV !== "production" && process.env.LOCAL_DEMO_MODE === "true";
+  return shouldUseLocalDemoMode(process.env.NODE_ENV, process.env.LOCAL_DEMO_MODE);
 }
 
 export function getSupabaseConfig() {

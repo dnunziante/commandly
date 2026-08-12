@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string };
@@ -10,9 +10,11 @@ export async function login(
   _previousState: LoginState,
   formData: FormData,
 ): Promise<LoginState> {
-  if (!isSupabaseConfigured()) {
+  if (isLocalDemoMode()) {
     redirect("/dashboard");
   }
+
+  if (!isSupabaseConfigured()) return { error: "Workspace sign-in is not configured." };
 
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");

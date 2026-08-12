@@ -35,11 +35,15 @@ const titleCase = (value: string) => value.split("_").map((part) => part[0]?.toU
 
 export async function getOperationsWorkspace(): Promise<OperationsWorkspace> {
   const viewer = await getViewer();
-  if (!viewer || viewer.demo) return {
+  if (viewer?.demo) return {
     persistence: "demo", error: "", canManage: true, checklists: operationsChecklistRecords,
     procedures: operationsProcedureRecords, alerts: operationsAlertRecords,
     schedules: operationsScheduleRecords, handoffs: operationsHandoffRecords,
     incidents: operationsIncidentRecords,
+  };
+  if (!viewer) return {
+    persistence: "supabase", error: "Sign in to view operations.", canManage: false,
+    checklists: [], procedures: [], alerts: [], schedules: [], handoffs: [], incidents: [],
   };
 
   const supabase = await createClient();

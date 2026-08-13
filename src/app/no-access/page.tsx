@@ -1,10 +1,11 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ShieldAlert, Sparkles } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 import { logout } from "@/app/auth/actions";
 
 export default function NoAccessPage() {
   return <main className="hero"><div className="hero-inner">
-    <div className="brand" style={{justifyContent:"center", marginBottom:24}}><span className="brand-mark"><Sparkles size={18}/></span><span>Commandly</span></div>
+    <Image className="no-access-logo" src="/refyntra-logo.png" alt="Refyntra" width={1536} height={1024} priority />
     <ShieldAlert size={42} color="#c94f0a"/>
     <h1 style={{marginTop:18}}>Your account needs a workspace</h1>
     <p>Your login is valid, but an administrator has not assigned you to an organization yet.</p>

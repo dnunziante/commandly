@@ -1,6 +1,6 @@
 # Product vision
 
-Commandly gives every sales representative a reliable, company-specific guide for product knowledge, customer conversations, objection handling, and follow-up. It helps a representative move from uncertainty to a useful next action without replacing their judgment or relationship with the customer.
+Refyntra gives every sales representative a reliable, company-specific guide for product knowledge, customer conversations, objection handling, and follow-up. It helps a representative move from uncertainty to a useful next action without replacing their judgment or relationship with the customer.
 
 ## Version 1 users
 

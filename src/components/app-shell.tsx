@@ -73,8 +73,8 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
     {open && <button className="scrim" aria-label="Close menu" onClick={() => setOpen(false)} />}
     <aside className={`sidebar ${open ? "sidebar-open" : ""}`}>
       <div className="brand-row sidebar-controls"><button className="icon-btn close-nav" aria-label="Close menu" onClick={() => setOpen(false)}><X size={20}/></button></div>
-      <Link className="sidebar-logo" href="/dashboard" aria-label="Commandly dashboard" onClick={() => setOpen(false)}>
-        <Image src="/commandly-logo-light.png" alt="Commandly — Your business. One command center." width={1976} height={796} priority />
+      <Link className="sidebar-logo" href="/dashboard" aria-label="Refyntra dashboard" onClick={() => setOpen(false)}>
+        <Image src="/refyntra-logo.png" alt="Refyntra — Refine. Transform. Perform." width={1536} height={1024} priority />
       </Link>
       <div className="workspace"><span className="avatar avatar-square">{viewer.organizationName.charAt(0)}</span><span><small>{viewer.demo ? "Demo workspace" : "Workspace"}</small><strong>{viewer.organizationName}</strong></span><ChevronDown size={16}/></div>
       <nav className="nav module-nav" aria-label="Main navigation">

@@ -5,7 +5,7 @@ import { logout } from "@/app/auth/actions";
 
 export default function NoAccessPage() {
   return <main className="hero"><div className="hero-inner">
-    <Image className="no-access-logo" src="/refyntra-logo.png" alt="Refyntra" width={1536} height={1024} priority />
+    <Image className="no-access-logo" src="/refyntra-logo-transparent.png" alt="Refyntra" width={1536} height={1024} priority />
     <ShieldAlert size={42} color="#c94f0a"/>
     <h1 style={{marginTop:18}}>Your account needs a workspace</h1>
     <p>Your login is valid, but an administrator has not assigned you to an organization yet.</p>

@@ -4,7 +4,7 @@ import { CheckCircle2 } from "lucide-react";
 import { LoginForm } from "@/components/login-form";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 
-export default async function Login({ searchParams }: { searchParams?: Promise<{ next?: string }> } = {}) {
+export default async function Login({ searchParams }: { searchParams?: Promise<{ next?: string }> }) {
   const { next } = searchParams ? await searchParams : {};
   const demoMode = isLocalDemoMode();
   const configured = isSupabaseConfigured();

@@ -14,6 +14,7 @@ export type ProductActionState = {
 export type SalesGuideActionState = { error: string; success: string };
 export type FamilyImageActionState = { error: string; success: string };
 export type ProductEditActionState = { error: string; success: string };
+export type ProductOrderActionState = { error: string; success: string };
 
 function slugify(value: string) {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -22,6 +23,10 @@ function slugify(value: string) {
 function lines(value: FormDataEntryValue | null, limit = 12) {
   return String(value || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, limit);
 }
+
+const allowedFrames = new Set(["", "Powder Coated Steel", "Aluminum"]);
+const allowedCapacities = new Set(["", "2 Passengers", "4 Passenger", "6 Passengers"]);
+const allowedPowertrains = new Set(["", "48V", "72V"]);
 
 async function requireTenantAdmin() {
   const viewer = await getViewer();
@@ -42,6 +47,7 @@ export async function createProduct(
   const description = String(formData.get("description") || "").trim();
   const rangeText = String(formData.get("range") || "").trim();
   const seatsText = String(formData.get("seats") || "").trim();
+  const powertrainText = String(formData.get("powertrain") || "").trim();
   const price = Number(formData.get("price"));
   const status = formData.get("status") === "published" ? "published" : "draft";
   const highlights = String(formData.get("highlights") || "")
@@ -53,11 +59,15 @@ export async function createProduct(
   if (name.length < 2 || !Number.isFinite(price) || price < 0 || !/^[0-9a-f-]{36}$/i.test(familyId)) {
     return { error: "Choose a product family, enter a product name, and use a valid non-negative price.", success: "" };
   }
+  if (!allowedFrames.has(rangeText) || !allowedCapacities.has(seatsText) || !allowedPowertrains.has(powertrainText)) {
+    return { error: "Choose a valid frame, capacity, and powertrain.", success: "" };
+  }
 
   const supabase = await createClient();
   const { data: family } = await supabase.from("product_families").select("id").eq("id", familyId).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!family) return { error: "Choose a product family from this workspace.", success: "" };
   const productId = crypto.randomUUID();
+  const { data: lastProduct } = await supabase.from("products").select("sort_order").eq("organization_id", viewer.organizationId).eq("family_id", familyId).order("sort_order", { ascending: false }).limit(1).maybeSingle();
 
   const { error } = await supabase.from("products").insert({
     id: productId,
@@ -70,6 +80,8 @@ export async function createProduct(
     base_price_cents: Math.round(price * 100),
     range_text: rangeText,
     seats_text: seatsText,
+    powertrain_text: powertrainText,
+    sort_order: (lastProduct?.sort_order ?? -1) + 1,
     highlights,
     visual_theme: "blue",
     status,
@@ -161,8 +173,14 @@ export async function updateProduct(
   const name = String(formData.get("name") || "").trim();
   const model = String(formData.get("model") || "").trim();
   const price = Number(formData.get("price"));
+  const rangeText = String(formData.get("range") || "").trim();
+  const seatsText = String(formData.get("seats") || "").trim();
+  const powertrainText = String(formData.get("powertrain") || "").trim();
   if (!/^[0-9a-f-]{36}$/i.test(productId) || !/^[0-9a-f-]{36}$/i.test(familyId) || name.length < 2 || !Number.isFinite(price) || price < 0) {
     return { error: "Choose a product family, enter a product name, and use a valid non-negative price.", success: "" };
+  }
+  if (!allowedFrames.has(rangeText) || !allowedCapacities.has(seatsText) || !allowedPowertrains.has(powertrainText)) {
+    return { error: "Choose a valid frame, capacity, and powertrain.", success: "" };
   }
 
   const supabase = await createClient();
@@ -177,8 +195,9 @@ export async function updateProduct(
     model,
     description: String(formData.get("description") || "").trim(),
     base_price_cents: Math.round(price * 100),
-    range_text: String(formData.get("range") || "").trim(),
-    seats_text: String(formData.get("seats") || "").trim(),
+    range_text: rangeText,
+    seats_text: seatsText,
+    powertrain_text: powertrainText,
     highlights,
     status: formData.get("status") === "published" ? "published" : "draft",
     updated_at: new Date().toISOString(),
@@ -201,9 +220,11 @@ export async function duplicateProduct(formData: FormData) {
 
   const supabase = await createClient();
   const { data: source } = await supabase.from("products")
-    .select("family_id, name, model, description, base_price_cents, range_text, seats_text, highlights, visual_theme, sales_guide")
+    .select("family_id, name, model, description, base_price_cents, range_text, seats_text, powertrain_text, highlights, visual_theme, sales_guide")
     .eq("id", productId).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!source) throw new Error("The product could not be duplicated.");
+
+  const { data: lastProduct } = await supabase.from("products").select("sort_order").eq("organization_id", viewer.organizationId).eq("family_id", source.family_id).order("sort_order", { ascending: false }).limit(1).maybeSingle();
 
   const duplicateId = crypto.randomUUID();
   const copySuffix = duplicateId.slice(0, 8);
@@ -218,6 +239,8 @@ export async function duplicateProduct(formData: FormData) {
     base_price_cents: source.base_price_cents,
     range_text: source.range_text,
     seats_text: source.seats_text,
+    powertrain_text: source.powertrain_text,
+    sort_order: (lastProduct?.sort_order ?? -1) + 1,
     highlights: source.highlights,
     visual_theme: source.visual_theme,
     sales_guide: source.sales_guide,
@@ -229,6 +252,33 @@ export async function duplicateProduct(formData: FormData) {
 
   revalidatePath("/admin/products");
   redirect(`/admin/products/${duplicateId}/edit`);
+}
+
+export async function saveProductOrder(familyId: string, productIds: string[]): Promise<ProductOrderActionState> {
+  const viewer = await requireTenantAdmin();
+  if (!/^[0-9a-f-]{36}$/i.test(familyId) || productIds.length > 500 || new Set(productIds).size !== productIds.length || productIds.some((id) => !/^[0-9a-f-]{36}$/i.test(id))) {
+    return { error: "The product order is invalid.", success: "" };
+  }
+
+  const supabase = await createClient();
+  const { data: products, error: readError } = await supabase.from("products").select("id, family_id").eq("organization_id", viewer.organizationId).eq("family_id", familyId);
+  const savedIds = new Set((products || []).map((product) => product.id));
+  if (readError || savedIds.size !== productIds.length || productIds.some((id) => !savedIds.has(id))) {
+    return { error: "The category changed before the order could be saved. Refresh and try again.", success: "" };
+  }
+
+  for (const [sortOrder, id] of productIds.entries()) {
+    const { error } = await supabase.from("products").update({ sort_order: sortOrder, updated_at: new Date().toISOString() }).eq("id", id).eq("organization_id", viewer.organizationId).eq("family_id", familyId);
+    if (error) return { error: "The product order could not be saved.", success: "" };
+  }
+
+  revalidatePath("/products");
+  revalidatePath("/products/families");
+  revalidatePath("/comparisons");
+  revalidatePath("/pricing-calculator");
+  revalidatePath("/quote-calculator");
+  revalidatePath("/admin/products");
+  return { error: "", success: "Order saved." };
 }
 
 export async function setProductStatus(formData: FormData) {

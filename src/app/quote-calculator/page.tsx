@@ -9,7 +9,14 @@ export default async function QuoteCalculatorPage() {
   const addOnFamilyIds = new Set(familyResult.families.filter((family) => family.slug === "accessories" || family.slug === "warranties").map((family) => family.id));
   const accessoryFamilyIds = new Set(familyResult.families.filter((family) => family.slug === "accessories").map((family) => family.id));
   const warrantyFamilyIds = new Set(familyResult.families.filter((family) => family.slug === "warranties").map((family) => family.id));
-  const vehicles = productResult.products.filter((product) => !product.familyId || !addOnFamilyIds.has(product.familyId));
+  const vehicles = productResult.products
+    .filter((product) => !product.familyId || !addOnFamilyIds.has(product.familyId))
+    .sort((first, second) => {
+      const nameOrder = first.name.localeCompare(second.name, undefined, { sensitivity: "base", numeric: true });
+      if (nameOrder) return nameOrder;
+      const priceOrder = first.price - second.price;
+      return priceOrder || first.model.localeCompare(second.model, undefined, { sensitivity: "base", numeric: true });
+    });
   const accessories = productResult.products.filter((product) => product.familyId && accessoryFamilyIds.has(product.familyId));
   const warranties = productResult.products
     .filter((product) => product.familyId && warrantyFamilyIds.has(product.familyId))

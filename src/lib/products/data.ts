@@ -16,6 +16,8 @@ type ProductRow = {
   base_price_cents: number;
   range_text: string;
   seats_text: string;
+  powertrain_text: string;
+  sort_order: number;
   highlights: string[] | null;
   visual_theme: string;
   image_path: string | null;
@@ -70,6 +72,8 @@ function toDTO(row: ProductRow, imageUrls: string[] = [], imagePaths: string[] =
     price: row.base_price_cents / 100,
     range: row.range_text,
     seats: row.seats_text,
+    powertrain: row.powertrain_text,
+    sortOrder: row.sort_order,
     highlights: row.highlights || [],
     color: row.visual_theme,
     imageUrl: imageUrls[0] || null,
@@ -93,8 +97,9 @@ export async function getTenantProducts(options: { includeDrafts?: boolean; fami
   const supabase = await createClient();
   let query = supabase
     .from("products")
-    .select("id, family_id, name, slug, model, description, base_price_cents, range_text, seats_text, highlights, visual_theme, image_path, image_paths, sales_guide, status")
+    .select("id, family_id, name, slug, model, description, base_price_cents, range_text, seats_text, powertrain_text, sort_order, highlights, visual_theme, image_path, image_paths, sales_guide, status")
     .eq("organization_id", viewer.organizationId)
+    .order("sort_order")
     .order("name");
 
   if (!options.includeDrafts) query = query.eq("status", "published");

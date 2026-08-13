@@ -21,6 +21,8 @@ export type ProductDTO = {
   price: number;
   range: string;
   seats: string;
+  powertrain: string;
+  sortOrder?: number;
   highlights: string[];
   color: string;
   imageUrl: string | null;

@@ -27,7 +27,7 @@ export function ProductLibrary({ products, live, emptyMessage, addOnMode = false
       <ProductGallery product={product}/>
       <div className="product-title"><div><h2>{product.name}</h2><p>{product.model}</p></div><span className="price">${product.price.toLocaleString()}</span></div>
       <p>{product.description}</p>
-      {!addOnMode && <div className="chips"><span className="chip">{product.range}</span><span className="chip">{product.seats}</span>{product.highlights.slice(0,1).map((highlight)=><span className="chip" key={highlight}>{highlight}</span>)}</div>}
+      {!addOnMode && <div className="chips"><span className="chip">{product.range}</span><span className="chip">{product.seats}</span><span className="chip">{product.powertrain}</span></div>}
       {addOnMode && product.highlights.length > 0 && <div className="chips">{product.highlights.slice(0,2).map((highlight)=><span className="chip" key={highlight}>{highlight}</span>)}</div>}
       <Link className="btn btn-secondary" style={{width:"100%"}} href={`/products/${product.slug}`}>{addOnMode ? "View add-on details" : "View product guide"}</Link>
     </article>)}</div> : <div className="card output empty"><div><Search size={32}/><h2>No matching products</h2><p>{products.length ? "Try a different model name or clear your search." : emptyMessage || "Your organization has no published products yet."}</p>{query && <button className="btn btn-secondary" onClick={()=>setQuery("")}>Clear search</button>}</div></div>}

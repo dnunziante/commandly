@@ -13,7 +13,8 @@ type CompareField = {
 const fields: CompareField[] = [
   { label: "Starting price", value: (product) => `$${product.price.toLocaleString()}` },
   { label: "Passenger capacity", value: (product) => product.seats },
-  { label: "Estimated range", value: (product) => product.range },
+  { label: "Frame", value: (product) => product.range },
+  { label: "Powertrain", value: (product) => product.powertrain },
   { label: "Description", value: (product) => product.description },
 ];
 

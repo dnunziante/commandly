@@ -19,7 +19,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Local demo mode
 
-Set `LOCAL_DEMO_MODE=true` only in `.env.development.local` to bypass login while building locally. This uses a mock BGC administrator and sample product data. The switch is ignored in production, where Supabase authentication remains required.
+Set `LOCAL_DEMO_MODE=true` only in `.env.development.local` to bypass login while building locally. This uses a mock BGC administrator and sample product data. The local switch is ignored in production. A deliberately public sample deployment can instead set the server-only `PUBLIC_DEMO_MODE=true`; authenticated production deployments should leave it unset or false.
 
 ## Validate
 

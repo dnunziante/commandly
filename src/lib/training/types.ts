@@ -14,3 +14,18 @@ export type TrainingResult = {
   lessons: TrainingLessonDTO[];
   error?: string;
 };
+
+export type TrainingModuleDTO = {
+  id: string;
+  title: string;
+  description: string;
+  isPublished: boolean;
+  createdAt: string;
+  lessons: TrainingLessonDTO[];
+};
+
+export type TrainingModulesResult = {
+  modules: TrainingModuleDTO[];
+  lessons: TrainingLessonDTO[];
+  error?: string;
+};

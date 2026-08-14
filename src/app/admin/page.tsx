@@ -27,6 +27,7 @@ export default async function Admin() {
     [Boxes, "Products & pricing", "Manage models, positioning, prices, and visibility.", "/admin/products"],
     [BarChart3, "Sales results", "Review and approve monthly results used by the Executive Advisor.", "/admin/sales-results"],
     [GraduationCap, "Coach scenarios", "Create and publish tenant-specific practice conversations.", "/admin/coach"],
+    [GraduationCap, "Training modules", "Combine knowledge lessons into ordered learning paths.", "/admin/training"],
     [BookOpen, "Sales content", "Manage scripts, objections, templates, and training.", "/admin/content"],
     [Building2, "Locations", "Manage BGC storefront details and local information.", "/admin/settings"],
     [Users, "Team members", "Invite users and assign future roles.", "/admin/settings"],

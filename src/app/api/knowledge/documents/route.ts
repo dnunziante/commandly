@@ -28,6 +28,7 @@ export async function POST(request: Request) {
   const title = String(formData.get("title") || "").trim();
   const requestedCollection = String(formData.get("collection") || "General");
   const collection = ALLOWED_COLLECTIONS.has(requestedCollection) ? requestedCollection : "General";
+  const addToTraining = formData.get("addToTraining") === "on";
 
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "Choose a document to upload." }, { status: 400 });
   if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: "Upload a PDF, Word document, Markdown file, or plain-text file." }, { status: 400 });
@@ -39,22 +40,44 @@ export async function POST(request: Request) {
   const { error: uploadError } = await supabase.storage.from("knowledge-documents").upload(storagePath, file, { contentType: file.type, upsert: false });
   if (uploadError) return NextResponse.json({ error: "The file could not be uploaded." }, { status: 500 });
 
-  const { error: metadataError } = await supabase.from("knowledge_documents").insert({
-    organization_id: viewer.organizationId,
-    uploaded_by: viewer.id,
-    title,
-    original_filename: file.name,
-    storage_path: storagePath,
-    mime_type: file.type,
-    size_bytes: file.size,
-    collection,
-    status: "uploaded",
-  });
+  const { data: document, error: metadataError } = await supabase
+    .from("knowledge_documents")
+    .insert({
+      organization_id: viewer.organizationId,
+      uploaded_by: viewer.id,
+      title,
+      original_filename: file.name,
+      storage_path: storagePath,
+      mime_type: file.type,
+      size_bytes: file.size,
+      collection,
+      status: "uploaded",
+    })
+    .select("id")
+    .single();
 
   if (metadataError) {
     await supabase.storage.from("knowledge-documents").remove([storagePath]);
     return NextResponse.json({ error: "The document record could not be saved." }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true }, { status: 201 });
+  if (addToTraining) {
+    const { error: lessonError } = await supabase.from("training_lessons").insert({
+      organization_id: viewer.organizationId,
+      knowledge_document_id: document.id,
+      created_by: viewer.id,
+      title,
+      description: `${collection} training based on ${file.name}`,
+      estimated_minutes: 10,
+      is_published: true,
+    });
+
+    if (lessonError) {
+      await supabase.from("knowledge_documents").delete().eq("id", document.id).eq("organization_id", viewer.organizationId);
+      await supabase.storage.from("knowledge-documents").remove([storagePath]);
+      return NextResponse.json({ error: "The document uploaded, but its training lesson could not be created. No incomplete item was kept." }, { status: 500 });
+    }
+  }
+
+  return NextResponse.json({ success: true, addedToTraining: addToTraining }, { status: 201 });
 }

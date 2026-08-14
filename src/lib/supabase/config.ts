@@ -21,6 +21,14 @@ export function isLocalDemoMode() {
   );
 }
 
+export const publicDemoCookieName = "commandly-public-demo";
+
+export function safeDemoNextPath(value?: string | null) {
+  return value?.startsWith("/") && !value.startsWith("//") && !value.startsWith("/admin")
+    ? value
+    : "/dashboard";
+}
+
 export function getSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;

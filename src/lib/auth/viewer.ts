@@ -1,6 +1,7 @@
 import "server-only";
 
-import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
+import { cookies } from "next/headers";
+import { isLocalDemoMode, isSupabaseConfigured, publicDemoCookieName } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type AppRole =
@@ -31,6 +32,17 @@ export const demoViewer: Viewer = {
   demo: true,
 };
 
+const publicDemoViewer: Viewer = {
+  id: "public-demo-user",
+  email: "demo@refyntra.example",
+  fullName: "Demo User",
+  initials: "DU",
+  organizationId: "00000000-0000-0000-0000-000000000000",
+  organizationName: "Refyntra Demo",
+  role: "salesperson",
+  demo: true,
+};
+
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -41,6 +53,7 @@ function initials(name: string) {
 }
 
 export async function getViewer(): Promise<Viewer | null> {
+  if ((await cookies()).get(publicDemoCookieName)?.value === "1") return publicDemoViewer;
   if (isLocalDemoMode()) return demoViewer;
   if (!isSupabaseConfigured()) return null;
 

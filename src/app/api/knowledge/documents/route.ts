@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { isKnowledgeCollection } from "@/lib/knowledge/collections";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -9,7 +10,6 @@ const ALLOWED_TYPES = new Set([
   "text/markdown",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
-const ALLOWED_COLLECTIONS = new Set(["General", "Product knowledge", "Policies", "Sales process", "Operations"]);
 
 function safeFilename(filename: string) {
   const extension = filename.includes(".") ? `.${filename.split(".").pop()?.toLowerCase()}` : "";
@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   const file = formData.get("file");
   const title = String(formData.get("title") || "").trim();
   const requestedCollection = String(formData.get("collection") || "General");
-  const collection = ALLOWED_COLLECTIONS.has(requestedCollection) ? requestedCollection : "General";
+  const collection = isKnowledgeCollection(requestedCollection) ? requestedCollection : "General";
   const addToTraining = formData.get("addToTraining") === "on";
 
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "Choose a document to upload." }, { status: 400 });

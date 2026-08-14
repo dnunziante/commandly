@@ -3,6 +3,37 @@
 import { revalidatePath } from "next/cache";
 import { getViewer } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
+import { isKnowledgeCollection } from "@/lib/knowledge/collections";
+
+export type KnowledgeCollectionUpdateResult = { error: string; success: string };
+
+export async function updateKnowledgeDocumentCollection(documentId: string, collection: string): Promise<KnowledgeCollectionUpdateResult> {
+  const viewer = await getViewer();
+  if (!viewer?.organizationId || !["tenant_admin", "platform_owner"].includes(viewer.role)) return { error: "Administrator access is required.", success: "" };
+  if (!/^[0-9a-f-]{36}$/i.test(documentId) || !isKnowledgeCollection(collection)) return { error: "Choose a valid collection.", success: "" };
+
+  const supabase = await createClient();
+  const { data: document, error } = await supabase
+    .from("knowledge_documents")
+    .update({ collection })
+    .eq("id", documentId)
+    .eq("organization_id", viewer.organizationId)
+    .select("original_filename")
+    .maybeSingle();
+
+  if (error || !document) return { error: "The document collection could not be updated.", success: "" };
+
+  const { error: lessonError } = await supabase
+    .from("training_lessons")
+    .update({ description: `${collection} training based on ${document.original_filename}`, updated_at: new Date().toISOString() })
+    .eq("knowledge_document_id", documentId)
+    .eq("organization_id", viewer.organizationId);
+
+  revalidatePath("/knowledge-base");
+  revalidatePath("/training");
+  if (lessonError) return { error: "The collection was saved, but the linked lesson description could not be refreshed.", success: "" };
+  return { error: "", success: `Moved to ${collection}.` };
+}
 
 export async function createTrainingLesson(formData: FormData) {
   const viewer = await getViewer();

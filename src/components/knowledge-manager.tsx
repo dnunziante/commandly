@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BookOpenCheck, FileText, LoaderCircle, Search, Trash2, Upload } from "lucide-react";
-import { createTrainingLesson, deleteKnowledgeDocument } from "@/app/knowledge-base/actions";
+import { createTrainingLesson, deleteKnowledgeDocument, updateKnowledgeDocumentCollection } from "@/app/knowledge-base/actions";
+import { KNOWLEDGE_COLLECTIONS } from "@/lib/knowledge/collections";
 import type { KnowledgeDocumentDTO } from "@/lib/knowledge/types";
 
 function formatBytes(bytes: number) {
@@ -15,6 +16,8 @@ export function KnowledgeManager({ documents, canManage }: { documents: Knowledg
   const formRef = useRef<HTMLFormElement>(null);
   const [query, setQuery] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [savingDocumentId, setSavingDocumentId] = useState<string | null>(null);
+  const [isCollectionPending, startCollectionTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const shown = useMemo(() => documents.filter((document) => `${document.title} ${document.filename} ${document.collection}`.toLowerCase().includes(query.toLowerCase())), [documents, query]);
 
@@ -34,11 +37,22 @@ export function KnowledgeManager({ documents, canManage }: { documents: Knowledg
     router.refresh();
   }
 
+  function changeCollection(documentId: string, collection: string) {
+    setSavingDocumentId(documentId);
+    setMessage(null);
+    startCollectionTransition(async () => {
+      const result = await updateKnowledgeDocumentCollection(documentId, collection);
+      setMessage({ type: result.error ? "error" : "success", text: result.error || result.success });
+      setSavingDocumentId(null);
+      if (!result.error) router.refresh();
+    });
+  }
+
   return <>
     {canManage && <form className="card knowledge-upload" ref={formRef} onSubmit={uploadDocument}>
       <div><h2>Upload a document</h2><p>Private files are available only to members of this organization. AI indexing will be added later.</p></div>
       <div><label className="label" htmlFor="document-title">Title</label><input className="input" id="document-title" name="title" required maxLength={140} placeholder="2026 product guide"/></div>
-      <div><label className="label" htmlFor="document-collection">Collection</label><select className="input" id="document-collection" name="collection"><option>General</option><option>Product knowledge</option><option>Policies</option><option>Sales process</option><option>Operations</option></select></div>
+      <div><label className="label" htmlFor="document-collection">Collection</label><select className="input" id="document-collection" name="collection">{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select></div>
       <div><label className="label" htmlFor="document-file">File</label><input className="input file-input" id="document-file" name="file" type="file" required accept=".pdf,.docx,.md,.txt,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"/><small className="field-help">PDF, DOCX, Markdown, or text · maximum 4 MB</small></div>
       <label className="knowledge-training-option"><input defaultChecked name="addToTraining" type="checkbox"/><span><strong>Add to Training</strong><small>Create a published 10-minute lesson linked to this document.</small></span></label>
       <button className="btn btn-primary" disabled={uploading} type="submit">{uploading ? <><LoaderCircle className="spin" size={16}/> Uploading…</> : <><Upload size={16}/> Upload securely</>}</button>
@@ -46,7 +60,7 @@ export function KnowledgeManager({ documents, canManage }: { documents: Knowledg
     </form>}
     <div className="card" style={{marginTop:18}}>
       <div className="metric-row knowledge-table-head"><div><h2>Documents</h2><p style={{fontSize:12,margin:0}}>Stored privately in the active workspace.</p></div><div style={{position:"relative",width:300,maxWidth:"100%"}}><Search size={15} style={{position:"absolute",left:11,top:12,color:"#68738a"}}/><input className="input" style={{paddingLeft:34}} value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search knowledge"/></div></div>
-      {shown.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Collection</th><th>Size</th><th>Uploaded</th><th>Status</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{shown.map((document)=><tr key={document.id}><td><span className="document-name"><FileText size={16}/><span><strong>{document.title}</strong><small>{document.filename}</small></span></span></td><td>{document.collection}</td><td>{formatBytes(document.sizeBytes)}</td><td>{new Intl.DateTimeFormat("en-US", { month:"short", day:"numeric", year:"numeric" }).format(new Date(document.createdAt))}</td><td>{document.trainingLessonId ? <span className="badge blue">In Training</span> : <span className={`badge ${document.status === "Error" ? "amber" : ""}`}>{document.status}</span>}</td>{canManage && <td><div className="knowledge-row-actions">{!document.trainingLessonId && <form action={createTrainingLesson}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-secondary" type="submit"><BookOpenCheck size={14}/> Add to training</button></form>}<form action={deleteKnowledgeDocument}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-ghost danger-button" type="submit" aria-label={`Delete ${document.title}`}><Trash2 size={14}/> Delete</button></form></div></td>}</tr>)}</tbody></table></div> : <div className="output empty"><div><FileText size={30}/><h2>{documents.length ? "No documents match" : "No documents yet"}</h2><p>{documents.length ? "Try a different search." : canManage ? "Upload the first approved document for this workspace." : "A tenant administrator has not uploaded any documents."}</p>{query && <button className="btn btn-secondary" onClick={()=>setQuery("")}>Clear search</button>}</div></div>}
+      {shown.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Collection</th><th>Size</th><th>Uploaded</th><th>Status</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{shown.map((document)=><tr key={document.id}><td><span className="document-name"><FileText size={16}/><span><strong>{document.title}</strong><small>{document.filename}</small></span></span></td><td>{canManage ? <select aria-label={`Collection for ${document.title}`} className="input knowledge-collection-select" value={document.collection} disabled={isCollectionPending && savingDocumentId === document.id} onChange={(event) => changeCollection(document.id, event.target.value)}>{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select> : document.collection}</td><td>{formatBytes(document.sizeBytes)}</td><td>{new Intl.DateTimeFormat("en-US", { month:"short", day:"numeric", year:"numeric" }).format(new Date(document.createdAt))}</td><td>{document.trainingLessonId ? <span className="badge blue">In Training</span> : <span className={`badge ${document.status === "Error" ? "amber" : ""}`}>{document.status}</span>}</td>{canManage && <td><div className="knowledge-row-actions">{!document.trainingLessonId && <form action={createTrainingLesson}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-secondary" type="submit"><BookOpenCheck size={14}/> Add to training</button></form>}<form action={deleteKnowledgeDocument}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-ghost danger-button" type="submit" aria-label={`Delete ${document.title}`}><Trash2 size={14}/> Delete</button></form></div></td>}</tr>)}</tbody></table></div> : <div className="output empty"><div><FileText size={30}/><h2>{documents.length ? "No documents match" : "No documents yet"}</h2><p>{documents.length ? "Try a different search." : canManage ? "Upload the first approved document for this workspace." : "A tenant administrator has not uploaded any documents."}</p>{query && <button className="btn btn-secondary" onClick={()=>setQuery("")}>Clear search</button>}</div></div>}
     </div>
   </>;
 }

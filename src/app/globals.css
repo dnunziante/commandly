@@ -133,6 +133,9 @@
 .reporting-period-selector .text-button { margin:0 4px 9px; }
 .sales-quality-counts { margin-bottom:18px; }
 .sales-quality-counts article small { color:var(--muted); line-height:1.45; }
+.knowledge-training-option{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}.knowledge-training-option input{margin-top:3px}.knowledge-training-option span{display:grid;gap:3px}.knowledge-training-option small{color:var(--muted)}.knowledge-row-actions{display:flex;align-items:center;gap:6px;white-space:nowrap}.training-lesson-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}.training-source-card{display:flex;flex-direction:column;gap:11px}.training-source-card h2,.training-source-card p{margin:0}.training-source-card p{font-size:12px;flex:1}.training-source-card>small,.training-duration{color:var(--muted);font-size:11px}.training-duration{display:flex;align-items:center;gap:4px}.training-source-card .btn{align-self:flex-start;margin-top:4px}
+@media(max-width:1000px){.training-lesson-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.training-lesson-grid{grid-template-columns:1fr}.knowledge-row-actions{align-items:stretch;flex-direction:column}.knowledge-row-actions .btn{width:100%}}
 .quality-approved { color:var(--green); background:#ecfdf5; }
 .quality-draft { color:var(--blue); }
 .quality-missing { color:#b91c1c; background:#fef2f2; }

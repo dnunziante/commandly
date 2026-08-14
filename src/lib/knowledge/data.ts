@@ -30,13 +30,23 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
   if (!viewer?.organizationId) return { documents: [], error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("knowledge_documents")
-    .select("id, title, original_filename, collection, mime_type, size_bytes, status, created_at")
-    .eq("organization_id", viewer.organizationId)
-    .order("created_at", { ascending: false });
+  const [{ data, error }, { data: lessonRows, error: lessonError }] = await Promise.all([
+    supabase
+      .from("knowledge_documents")
+      .select("id, title, original_filename, collection, mime_type, size_bytes, status, created_at")
+      .eq("organization_id", viewer.organizationId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("training_lessons")
+      .select("id, knowledge_document_id")
+      .eq("organization_id", viewer.organizationId),
+  ]);
 
-  if (error) return { documents: [], error: "Knowledge documents could not be loaded." };
+  if (error || lessonError) return { documents: [], error: "Knowledge documents could not be loaded." };
+
+  const lessonByDocument = new Map(
+    (lessonRows ?? []).map((lesson) => [lesson.knowledge_document_id as string, lesson.id as string]),
+  );
 
   return {
     documents: (data as KnowledgeRow[]).map((row): KnowledgeDocumentDTO => ({
@@ -48,6 +58,7 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
       sizeBytes: row.size_bytes,
       status: statusLabels[row.status],
       createdAt: row.created_at,
+      trainingLessonId: lessonByDocument.get(row.id),
     })),
   };
 }

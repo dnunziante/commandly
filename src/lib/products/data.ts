@@ -1,10 +1,10 @@
 import "server-only";
 
 import { getViewer } from "@/lib/auth/viewer";
-import { products as demoProducts } from "@/lib/data";
+import { demoProductFamilies as demoFamilies, demoProducts } from "@/lib/demo/catalog";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductDTO, ProductFamilyDTO, ProductFamilyResult, ProductResult, ProductStatus, SalesGuideDTO } from "./types";
+import type { ProductDTO, ProductFamilyResult, ProductResult, ProductStatus, SalesGuideDTO } from "./types";
 
 type ProductRow = {
   id: string;
@@ -34,15 +34,6 @@ type ProductFamilyRow = {
   image_path: string | null;
   products: { count: number }[] | null;
 };
-
-const demoFamilies: ProductFamilyDTO[] = [
-  { id: "demo-activev-pulse", name: "ActivEV Pulse", slug: "activev-pulse", description: "Explore every ActivEV Pulse model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
-  { id: "demo-bintelli-beyond", name: "Bintelli Beyond", slug: "bintelli-beyond", description: "Explore every Bintelli Beyond model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
-  { id: "demo-bintelli-nexus", name: "Bintelli Nexus", slug: "bintelli-nexus", description: "Explore every Bintelli Nexus model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
-  { id: "demo-sivo-edge", name: "SIVO Edge", slug: "sivo-edge", description: "Explore every SIVO Edge model and configuration.", imageUrl: null, imagePath: null, productCount: 0 },
-  { id: "demo-accessories", name: "Accessories", slug: "accessories", description: "Browse available accessories and add-on options.", imageUrl: null, imagePath: null, productCount: 0 },
-  { id: "demo-warranties", name: "Warranties", slug: "warranties", description: "Browse available warranty plans and coverage options.", imageUrl: null, imagePath: null, productCount: 0 },
-];
 
 const statusLabels: Record<ProductRow["status"], ProductStatus> = {
   draft: "Draft",
@@ -85,11 +76,11 @@ function toDTO(row: ProductRow, imageUrls: string[] = [], imagePaths: string[] =
 }
 
 export async function getTenantProducts(options: { includeDrafts?: boolean; familyId?: string } = {}): Promise<ProductResult> {
-  if (isLocalDemoMode() || !isSupabaseConfigured()) {
+  const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode() || !isSupabaseConfigured()) {
     return { products: options.familyId ? demoProducts.filter((product) => product.familyId === options.familyId) : demoProducts, source: "demo" };
   }
 
-  const viewer = await getViewer();
   if (!viewer?.organizationId) {
     return { products: [], source: "supabase", error: "Your account is not assigned to an organization." };
   }
@@ -134,9 +125,8 @@ export async function getTenantProducts(options: { includeDrafts?: boolean; fami
 }
 
 export async function getTenantProductFamilies(): Promise<ProductFamilyResult> {
-  if (isLocalDemoMode() || !isSupabaseConfigured()) return { families: demoFamilies, source: "demo" };
-
   const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode() || !isSupabaseConfigured()) return { families: demoFamilies, source: "demo" };
   if (!viewer?.organizationId) return { families: [], source: "supabase", error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();

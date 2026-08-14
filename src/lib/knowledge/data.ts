@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getViewer } from "@/lib/auth/viewer";
+import { demoKnowledgeDocuments } from "@/lib/demo/training";
 import { isLocalDemoMode } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import type { KnowledgeDocumentDTO, KnowledgeResult } from "./types";
@@ -24,9 +25,8 @@ const statusLabels = {
 } as const;
 
 export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
-  if (isLocalDemoMode()) return { documents: [] };
-
   const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode()) return { documents: demoKnowledgeDocuments };
   if (!viewer?.organizationId) return { documents: [], error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();

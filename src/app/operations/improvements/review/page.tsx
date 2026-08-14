@@ -1,0 +1,14 @@
+import Link from "next/link";
+import { ArrowRight, ClipboardCheck, Filter } from "lucide-react";
+import { AppShell } from "@/components/app-shell";
+import { PageHeader } from "@/components/page-header";
+import { getImprovementWorkspace } from "@/lib/operations/improvement-repository";
+import { redirect } from "next/navigation";
+
+export default async function ImprovementReviewPage() {
+  const data = await getImprovementWorkspace();
+  if (!data.canManage) redirect("/operations/improvements");
+  const processImprovements = data.items;
+  const queue = [...processImprovements].sort((a, b) => Number(b.urgency === "High" || b.urgency === "Critical") - Number(a.urgency === "High" || a.urgency === "Critical"));
+  return <AppShell title="Improvement Review"><PageHeader eyebrow="Manager tools" title="Review ideas and move the right work forward" description="Evaluate business impact, assign the department and owner, and keep decisions visible." action={<Link className="btn btn-ghost" href="/operations/improvements">Employee view</Link>}/><div className="improvement-review-toolbar card"><div><ClipboardCheck size={20}/><strong>{queue.filter((item) => item.managerDecision === "Pending").length} items need a decision</strong></div><label><Filter size={15}/><span className="label">Location</span><select className="input"><option>All locations</option><option>Charleston</option><option>Summerville</option></select></label><label><span className="label">Department</span><select className="input"><option>All departments</option><option>Management</option><option>Sales</option><option>Service</option><option>Administrative</option><option>Delivery</option></select></label></div><section className="improvement-review-list">{queue.map((item) => <article className="card" key={item.id}><div className="metric-row"><div className="operations-alert-badges"><span className={`badge ${item.urgency === "High" || item.urgency === "Critical" ? "amber" : "blue"}`}>{item.urgency} urgency</span><span className="badge">{item.managerDecision}</span></div><small>{item.location}</small></div><h2>{item.title}</h2><p>{item.description}</p><div className="improvement-rating-row"><span><small>Frequency</small><strong>{item.frequency}</strong></span><span><small>Impact</small><strong>{item.impact}</strong></span><span><small>Department</small><strong>{item.department}</strong></span><span><small>Owner</small><strong>{item.owner}</strong></span></div><Link className="btn btn-secondary" href={`/operations/improvements/${item.id}`}>Open manager workflow <ArrowRight size={16}/></Link></article>)}</section></AppShell>;
+}

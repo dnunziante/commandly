@@ -20,6 +20,8 @@ export type GrowthPlan = {
   id: string;
   opportunitySlug: string;
   title: string;
+  locationId: string | null;
+  locationName: string;
   owner: string;
   targetDate: string;
   targetMeasure: string;

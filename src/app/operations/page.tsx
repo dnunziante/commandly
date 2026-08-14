@@ -1,21 +1,26 @@
 import { AlertTriangle, BookOpenCheck, CheckCircle2, ClipboardCheck, Clock3, MapPin, ShieldCheck } from "lucide-react";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
-import { operationsAlerts, operationsChecklists, operationsProcedures } from "@/lib/operations/data";
+import { getOperationsWorkspace } from "@/lib/operations/repository";
 
-export default function OperationsDashboardPage() {
+export default async function OperationsDashboardPage() {
+  const data = await getOperationsWorkspace();
+  const operationsChecklists = data.checklists.map((item) => { const completed = item.steps.filter((step) => step.complete).length; const complete = completed === item.steps.length && item.steps.length > 0; return { id: item.id, title: item.title, location: item.location, owner: item.owner, due: item.dueDate, completed, total: item.steps.length, status: complete ? "Complete" : completed ? "On track" : "Needs attention" }; });
+  const operationsProcedures = data.procedures.filter((item) => item.status === "Published").slice(0, 5).map((item) => ({ title: item.title, category: item.category, owner: item.owner, updated: `Version ${item.version}` }));
+  const operationsAlerts = data.alerts.filter((item) => item.status !== "Resolved").slice(0, 5).map((item) => ({ title: item.title, detail: item.detail, level: item.severity === "High" || item.severity === "Critical" ? "Needs attention" : item.status, location: item.location }));
   const completedSteps = operationsChecklists.reduce((total, checklist) => total + checklist.completed, 0);
   const totalSteps = operationsChecklists.reduce((total, checklist) => total + checklist.total, 0);
-  const completion = Math.round(completedSteps / totalSteps * 100);
+  const completion = totalSteps ? Math.round(completedSteps / totalSteps * 100) : 0;
   const needsAttention = operationsChecklists.filter((checklist) => checklist.status === "Needs attention").length;
+  const shared = data.persistence === "supabase";
   return <AppShell title="Operations Assistant">
     <PageHeader eyebrow="Run the day with confidence" title="Keep every location aligned and accountable" description="See today’s operational work, find the right procedure, and address exceptions before they become customer problems." />
-    <div className="callout operations-disclaimer"><ShieldCheck size={20}/><div><strong>Operations prototype</strong><p>This milestone uses sample BGC workflows. It is not connected to live inventory, employees, schedules, or dealership systems.</p></div></div>
+    <div className="callout operations-disclaimer"><ShieldCheck size={20}/><div><strong>{shared ? "Protected Operations workspace" : "Operations demo workspace"}</strong><p>{shared ? "Operational records are stored for this organization. Live inventory, employee scheduling, notifications, and dealership-system integrations are not connected yet." : "This local demo uses sample BGC workflows and does not connect to live dealership systems."}</p></div></div>
     <section className="grid grid-4 operations-metrics" aria-label="Operations summary">
       <div className="card"><div className="metric-row"><span>Today’s completion</span><span className="metric-icon"><CheckCircle2 size={18}/></span></div><div className="metric">{completion}%</div><span className="delta">{completedSteps} of {totalSteps} steps</span></div>
-      <div className="card"><div className="metric-row"><span>Active checklists</span><span className="metric-icon"><ClipboardCheck size={18}/></span></div><div className="metric">{operationsChecklists.length}</div><span className="delta">Across sample locations</span></div>
+      <div className="card"><div className="metric-row"><span>Active checklists</span><span className="metric-icon"><ClipboardCheck size={18}/></span></div><div className="metric">{operationsChecklists.length}</div><span className="delta">{shared ? "Across organization locations" : "Across sample locations"}</span></div>
       <div className={`card ${needsAttention ? "performance-attention" : ""}`}><div className="metric-row"><span>Needs attention</span><span className="metric-icon"><AlertTriangle size={18}/></span></div><div className="metric">{needsAttention}</div><span className="delta">Review before completion</span></div>
-      <div className="card"><div className="metric-row"><span>Procedures</span><span className="metric-icon"><BookOpenCheck size={18}/></span></div><div className="metric">{operationsProcedures.length}</div><span className="delta">Approved sample guidance</span></div>
+      <div className="card"><div className="metric-row"><span>Procedures</span><span className="metric-icon"><BookOpenCheck size={18}/></span></div><div className="metric">{operationsProcedures.length}</div><span className="delta">{shared ? "Published guidance" : "Approved sample guidance"}</span></div>
     </section>
     <div className="section-heading" id="checklists"><div><h2>Today’s checklists</h2><p>Sample assignments and completion status by location.</p></div></div>
     <section className="grid grid-3 operations-checklist-grid">{operationsChecklists.map((checklist) => { const progress = Math.round(checklist.completed / checklist.total * 100); return <article className="card operations-checklist" key={checklist.id}><div className="metric-row"><span className={`badge ${checklist.status === "Needs attention" ? "amber" : checklist.status === "Complete" ? "" : "blue"}`}>{checklist.status}</span><strong>{progress}%</strong></div><h2>{checklist.title}</h2><div className="operations-meta"><span><MapPin size={14}/>{checklist.location}</span><span><Clock3 size={14}/>Due {checklist.due}</span></div><p>Owner: <strong>{checklist.owner}</strong></p><div className="progress"><span style={{ width: `${progress}%` }}/></div><small>{checklist.completed} of {checklist.total} steps complete</small></article>; })}</section>

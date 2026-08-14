@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   async redirects() {
     const localDemo = process.env.NODE_ENV !== "production" && process.env.LOCAL_DEMO_MODE === "true";
     return localDemo

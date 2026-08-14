@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, LoaderCircle, MapPin, Repeat2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { OperationsAlertRecord, OperationsChecklistRecord, OperationsScheduleRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { readOperationsAlerts, readOperationsChecklists, readOperationsSchedules } from "@/lib/operations/storage";
 
 type CalendarEvent = { id: string; date: string; title: string; location: string; type: "Checklist" | "Alert" | "Schedule"; status: "Completed" | "Active" | "Scheduled" | "Overdue"; href: string };
@@ -11,18 +12,18 @@ const typeOptions = ["All work", "Checklist", "Alert", "Schedule"] as const;
 
 function isoDate(year: number, month: number, day: number) { return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`; }
 
-export function OperationsTaskCalendar() {
+export function OperationsTaskCalendar({ initialChecklists = [], initialAlerts = [], initialSchedules = [], persistence = "demo", initialError = "" }: { initialChecklists?: OperationsChecklistRecord[]; initialAlerts?: OperationsAlertRecord[]; initialSchedules?: OperationsScheduleRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
   const now = useMemo(() => new Date(), []);
   const today = isoDate(now.getFullYear(), now.getMonth(), now.getDate());
   const [month, setMonth] = useState(() => new Date(now.getFullYear(), now.getMonth(), 1));
-  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(null);
-  const [alerts, setAlerts] = useState<OperationsAlertRecord[]>([]);
-  const [schedules, setSchedules] = useState<OperationsScheduleRecord[]>([]);
+  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(persistence === "supabase" ? initialChecklists : null);
+  const [alerts, setAlerts] = useState<OperationsAlertRecord[]>(persistence === "supabase" ? initialAlerts : []);
+  const [schedules, setSchedules] = useState<OperationsScheduleRecord[]>(persistence === "supabase" ? initialSchedules : []);
   const [location, setLocation] = useState("All locations");
   const [typeFilter, setTypeFilter] = useState<(typeof typeOptions)[number]>("All work");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(initialError);
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); setAlerts(readOperationsAlerts()); setSchedules(readOperationsSchedules()); } catch { setError("The operations calendar could not be loaded from this browser."); setChecklists([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); setAlerts(readOperationsAlerts()); setSchedules(readOperationsSchedules()); } catch { setError("The operations calendar could not be loaded from this browser."); setChecklists([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
 
   if (checklists === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading operations calendar</h2><p>Combining checklist, alert, and schedule dates.</p></div></div>;
   if (error) return <div className="card operations-performance-state"><AlertTriangle size={24}/><div><h2>Calendar unavailable</h2><p>{error}</p></div></div>;

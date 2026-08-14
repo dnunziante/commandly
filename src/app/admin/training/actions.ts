@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getViewer } from "@/lib/auth/viewer";
 import { isLocalDemoMode } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import { isTrainingCategory } from "@/lib/training/categories";
+import { isTrainingCategory, toStoredTrainingCategory } from "@/lib/training/categories";
 
 export type TrainingModuleActionState = { error: string; success: string };
 
@@ -28,6 +28,7 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
 
   if (title.length < 2 || title.length > 140) return { error: "Enter a module title between 2 and 140 characters.", success: "" };
   if (!isTrainingCategory(category)) return { error: "Choose a valid training category.", success: "" };
+  const storedCategory = toStoredTrainingCategory(category);
   if (requestedLessonIds.length < 1) return { error: "Choose at least one lesson for this module.", success: "" };
 
   const supabase = await createClient();
@@ -51,7 +52,7 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
     const { data, error } = await supabase.from("training_modules").update({
       title,
       description,
-      category,
+      category: storedCategory,
       is_published: isPublished,
       updated_at: new Date().toISOString(),
     }).eq("id", moduleId).eq("organization_id", viewer.organizationId).select("id").maybeSingle();
@@ -62,7 +63,7 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
       created_by: viewer.id,
       title,
       description,
-      category,
+      category: storedCategory,
       is_published: isPublished,
     }).select("id").single();
     if (error || !data) return { error: "The module could not be created.", success: "" };

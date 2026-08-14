@@ -3,6 +3,7 @@ import "server-only";
 import { getViewer } from "@/lib/auth/viewer";
 import { isLocalDemoMode } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { toDisplayTrainingCategory } from "./categories";
 import type { TrainingLessonDTO, TrainingModuleDTO, TrainingModulesResult, TrainingResult } from "./types";
 
 type TrainingRow = {
@@ -122,7 +123,7 @@ export async function getTrainingModules(options: { includeDrafts?: boolean } = 
       id: module.id,
       title: module.title,
       description: module.description,
-      category: module.category,
+      category: toDisplayTrainingCategory(module.category),
       isPublished: module.is_published,
       createdAt: module.created_at,
       lessons: assignmentRows

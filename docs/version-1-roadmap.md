@@ -68,6 +68,7 @@ Version 1 is ready for a controlled pilot when a company can securely onboard, m
 - Added a browser-local monthly Operations Task Calendar combining checklist deadlines, alert due dates, and recurring schedule runs with location and work-type filters.
 - Added browser-local Operations Handoff Logs for shift context, unresolved issues, decisions, next-action ownership, acknowledgment, closure, and location/status filtering.
 - Added browser-local Operations Incident Reports for severity, containment, investigation, root cause, corrective action, ownership, deadlines, and verified closure.
+- Added the deployed tenant-scoped Supabase Operations foundation and connected authenticated persistence for procedures, schedules, checklists, alerts, handoffs, incidents, calendar, dashboard, and performance views. Local demo mode retains the browser-storage fallback.
 ## Business Growth Advisor prototype
 
 - Added a mock-data opportunity dashboard with category and search filters.

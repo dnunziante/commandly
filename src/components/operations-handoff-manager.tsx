@@ -2,21 +2,23 @@
 
 import { AlertTriangle, ArrowRight, ArrowRightLeft, CheckCircle2, Clock3, LoaderCircle, MapPin, Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { saveOperationsHandoff, setOperationsHandoffStatus } from "@/app/operations/actions";
 import type { OperationsHandoffRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { readOperationsHandoffs, writeOperationsHandoffs } from "@/lib/operations/storage";
 
 const statuses = ["All statuses", "Open", "Acknowledged", "Closed"] as const;
 
-export function OperationsHandoffManager() {
-  const [handoffs, setHandoffs] = useState<OperationsHandoffRecord[] | null>(null);
+export function OperationsHandoffManager({ initialHandoffs = [], persistence = "demo", initialError = "" }: { initialHandoffs?: OperationsHandoffRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+  const [handoffs, setHandoffs] = useState<OperationsHandoffRecord[] | null>(persistence === "supabase" ? initialHandoffs : null);
   const [location, setLocation] = useState("Charleston"); const [fromShift, setFromShift] = useState("Opening"); const [toShift, setToShift] = useState("Closing");
   const [summary, setSummary] = useState(""); const [issues, setIssues] = useState(""); const [decisions, setDecisions] = useState(""); const [owner, setOwner] = useState("");
-  const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>("All statuses"); const [locationFilter, setLocationFilter] = useState("All locations"); const [error, setError] = useState("");
+  const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>("All statuses"); const [locationFilter, setLocationFilter] = useState("All locations"); const [error, setError] = useState(initialError);
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setHandoffs(readOperationsHandoffs()); } catch { setError("Handoff logs could not be loaded from this browser."); setHandoffs([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setHandoffs(readOperationsHandoffs()); } catch { setError("Handoff logs could not be loaded from this browser."); setHandoffs([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
   function save(next: OperationsHandoffRecord[]) { try { writeOperationsHandoffs(next); setHandoffs(next); setError(""); } catch { setError("Handoff changes could not be saved in this browser."); } }
-  function createHandoff(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); if (summary.trim().length < 3 || owner.trim().length < 2) { setError("Add a clear summary and next-action owner."); return; } const now = new Date().toISOString(); const item: OperationsHandoffRecord = { id: crypto.randomUUID(), location, fromShift, toShift, summary: summary.trim(), unresolvedIssues: issues.trim() || "None reported.", decisions: decisions.trim() || "No new decisions recorded.", owner: owner.trim(), status: "Open", createdAt: now, updatedAt: now }; save([item, ...(handoffs ?? [])]); setSummary(""); setIssues(""); setDecisions(""); setOwner(""); }
-  function changeStatus(id: string, status: OperationsHandoffRecord["status"]) { if (!handoffs) return; save(handoffs.map((item) => item.id === id ? { ...item, status, updatedAt: new Date().toISOString() } : item)); }
+  async function createHandoff(event: React.FormEvent<HTMLFormElement>) { event.preventDefault(); if (summary.trim().length < 3 || owner.trim().length < 2) { setError("Add a clear summary and next-action owner."); return; } const input = { location, fromShift, toShift, summary: summary.trim(), unresolvedIssues: issues.trim() || "None reported.", decisions: decisions.trim() || "No new decisions recorded.", owner: owner.trim() }; if (persistence === "supabase") { const result = await saveOperationsHandoff(input); if (result.error || !result.record) { setError(result.error ?? "Handoff could not be created."); return; } setHandoffs([result.record, ...(handoffs ?? [])]); setError(""); } else { const now = new Date().toISOString(); save([{ ...input, id: crypto.randomUUID(), status: "Open", createdAt: now, updatedAt: now }, ...(handoffs ?? [])]); } setSummary(""); setIssues(""); setDecisions(""); setOwner(""); }
+  async function changeStatus(id: string, status: OperationsHandoffRecord["status"]) { if (!handoffs) return; if (persistence === "demo") save(handoffs.map((item) => item.id === id ? { ...item, status, updatedAt: new Date().toISOString() } : item)); else { const result = await setOperationsHandoffStatus(id, status); if (result.error) { setError(result.error); return; } setHandoffs(handoffs.map((item) => item.id === id ? { ...item, status, updatedAt: result.updatedAt ?? item.updatedAt } : item)); setError(""); } }
   if (handoffs === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading handoff logs</h2><p>Checking this browser for saved shift context.</p></div></div>;
   const locations = [...new Set((handoffs ?? []).map((item) => item.location))]; const filtered = (handoffs ?? []).filter((item) => (statusFilter === "All statuses" || item.status === statusFilter) && (locationFilter === "All locations" || item.location === locationFilter));
   const open = handoffs?.filter((item) => item.status === "Open").length ?? 0; const acknowledged = handoffs?.filter((item) => item.status === "Acknowledged").length ?? 0; const closed = handoffs?.filter((item) => item.status === "Closed").length ?? 0;

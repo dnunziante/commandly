@@ -2,14 +2,16 @@
 
 import { AlertCircle, AlertTriangle, CalendarDays, CheckCircle2, Clock3, LoaderCircle, MapPin, Plus, RotateCcw, ShieldAlert, UserRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { saveOperationsAlert, setOperationsAlertStatus } from "@/app/operations/actions";
 import type { OperationsAlertRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { formatOperationsDate, readOperationsAlerts, writeOperationsAlerts } from "@/lib/operations/storage";
 
 const statuses: Array<"All statuses" | OperationsAlertRecord["status"]> = ["All statuses", "Open", "Acknowledged", "Resolved"];
 
-export function OperationsAlertManager() {
-  const [alerts, setAlerts] = useState<OperationsAlertRecord[] | null>(null);
-  const [error, setError] = useState("");
+export function OperationsAlertManager({ initialAlerts = [], persistence = "demo", initialError = "" }: { initialAlerts?: OperationsAlertRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+  const [alerts, setAlerts] = useState<OperationsAlertRecord[] | null>(persistence === "supabase" ? initialAlerts : null);
+  const [error, setError] = useState(initialError);
   const [statusFilter, setStatusFilter] = useState<(typeof statuses)[number]>("All statuses");
   const [title, setTitle] = useState("");
   const [detail, setDetail] = useState("");
@@ -18,17 +20,20 @@ export function OperationsAlertManager() {
   const [owner, setOwner] = useState("");
   const [dueDate, setDueDate] = useState("");
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setAlerts(readOperationsAlerts()); } catch { setError("Saved alerts could not be loaded from this browser."); setAlerts([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setAlerts(readOperationsAlerts()); } catch { setError("Saved alerts could not be loaded from this browser."); setAlerts([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
   const filtered = useMemo(() => (alerts ?? []).filter((alert) => statusFilter === "All statuses" || alert.status === statusFilter), [alerts, statusFilter]);
   function save(next: OperationsAlertRecord[]) { try { writeOperationsAlerts(next); setAlerts(next); setError(""); } catch { setError("Alert changes could not be saved in this browser."); } }
-  function createAlert(event: React.FormEvent<HTMLFormElement>) {
+  async function createAlert(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (title.trim().length < 2 || detail.trim().length < 10 || owner.trim().length < 2 || !dueDate) { setError("Add a title, useful description, owner, and due date."); return; }
-    const now = new Date().toISOString(); const next: OperationsAlertRecord = { id: crypto.randomUUID(), title: title.trim(), detail: detail.trim(), severity, location, owner: owner.trim(), dueDate, status: "Open", createdAt: now, history: [{ id: crypto.randomUUID(), status: "Open", note: "Alert created.", changedAt: now }] };
-    save([next, ...(alerts ?? [])]); setTitle(""); setDetail(""); setSeverity("Medium"); setOwner(""); setDueDate("");
+    const input = { title: title.trim(), detail: detail.trim(), severity, location, owner: owner.trim(), dueDate };
+    if (persistence === "supabase") { const result = await saveOperationsAlert(input); if (result.error || !result.record) { setError(result.error ?? "Alert could not be created."); return; } setAlerts([result.record, ...(alerts ?? [])]); setError(""); }
+    else { const now = new Date().toISOString(); const next: OperationsAlertRecord = { ...input, id: crypto.randomUUID(), status: "Open", createdAt: now, history: [{ id: crypto.randomUUID(), status: "Open", note: "Alert created.", changedAt: now }] }; save([next, ...(alerts ?? [])]); }
+    setTitle(""); setDetail(""); setSeverity("Medium"); setOwner(""); setDueDate("");
   }
-  function changeStatus(alertId: string, status: OperationsAlertRecord["status"]) {
+  async function changeStatus(alertId: string, status: OperationsAlertRecord["status"]) {
     if (!alerts) return; const now = new Date().toISOString(); const note = status === "Acknowledged" ? "Owner acknowledged the alert." : status === "Resolved" ? "Alert marked resolved." : "Alert reopened for follow-up.";
-    save(alerts.map((alert) => alert.id === alertId ? { ...alert, status, history: [...alert.history, { id: crypto.randomUUID(), status, note, changedAt: now }] } : alert));
+    if (persistence === "demo") save(alerts.map((alert) => alert.id === alertId ? { ...alert, status, history: [...alert.history, { id: crypto.randomUUID(), status, note, changedAt: now }] } : alert));
+    else { const result = await setOperationsAlertStatus(alertId, status, note); if (result.error || !result.history) { setError(result.error ?? "Alert could not be updated."); return; } setAlerts(alerts.map((alert) => alert.id === alertId ? { ...alert, status, history: [...alert.history, result.history] } : alert)); setError(""); }
   }
   if (alerts === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading operational alerts</h2><p>Checking this browser for saved exceptions.</p></div></div>;
   const openCount = alerts?.filter((alert) => alert.status === "Open").length ?? 0; const acknowledgedCount = alerts?.filter((alert) => alert.status === "Acknowledged").length ?? 0; const resolvedCount = alerts?.filter((alert) => alert.status === "Resolved").length ?? 0;

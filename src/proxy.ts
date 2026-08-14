@@ -1,15 +1,20 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isLocalDemoMode } from "@/lib/supabase/config";
+import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 
 export async function proxy(request: NextRequest) {
   if (isLocalDemoMode()) return NextResponse.next();
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!isSupabaseConfigured()) {
+    const loginUrl = request.nextUrl.clone();
+    loginUrl.pathname = "/login";
+    loginUrl.search = "";
+    loginUrl.searchParams.set("configuration", "missing");
+    return NextResponse.redirect(loginUrl);
+  }
 
-  // Preserve the local prototype until a Supabase project is configured.
-  if (!url || !publishableKey) return NextResponse.next();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(url, publishableKey, {
@@ -69,6 +74,8 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/assistant/:path*",
+    "/pricing-calculator/:path*",
+    "/quote-calculator/:path*",
     "/products/:path*",
     "/comparisons/:path*",
     "/objections/:path*",
@@ -80,5 +87,8 @@ export const config = {
     "/analytics/:path*",
     "/admin/:path*",
     "/coach/:path*",
+    "/growth/:path*",
+    "/operations/:path*",
+    "/executive/:path*",
   ],
 };

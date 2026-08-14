@@ -1,0 +1,5 @@
+export type ExecutiveDecisionStatus = "open" | "validated" | "revised" | "reversed";
+export type ExecutiveDecision = { id: string; priorityKey: string; reportingPeriod: string; title: string; decision: string; rationale: string; ownerName: string; reviewDate: string; expectedOutcome: string; measuredOutcome: string; status: ExecutiveDecisionStatus; updatedAt: string };
+export type ExecutiveDecisionInput = Omit<ExecutiveDecision, "id" | "updatedAt"> & { id?: string };
+export function decisionNeedsMeasuredOutcome(status: ExecutiveDecisionStatus) { return status !== "open"; }
+export function summarizeDecisions(decisions: ExecutiveDecision[], today = new Date()) { const todayKey = today.toISOString().slice(0, 10); return { total: decisions.length, open: decisions.filter((item) => item.status === "open").length, validated: decisions.filter((item) => item.status === "validated").length, dueForReview: decisions.filter((item) => item.status === "open" && item.reviewDate <= todayKey).length }; }

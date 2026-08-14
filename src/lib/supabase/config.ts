@@ -5,8 +5,20 @@ export function isSupabaseConfigured() {
   );
 }
 
+export function shouldUseLocalDemoMode(
+  nodeEnvironment?: string,
+  localDemoFlag?: string,
+  publicDemoFlag?: string,
+) {
+  return publicDemoFlag === "true" || (nodeEnvironment !== "production" && localDemoFlag === "true");
+}
+
 export function isLocalDemoMode() {
-  return process.env.NODE_ENV !== "production" && process.env.LOCAL_DEMO_MODE === "true";
+  return shouldUseLocalDemoMode(
+    process.env.NODE_ENV,
+    process.env.LOCAL_DEMO_MODE,
+    process.env.PUBLIC_DEMO_MODE,
+  );
 }
 
 export function getSupabaseConfig() {

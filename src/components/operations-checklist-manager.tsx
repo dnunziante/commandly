@@ -2,36 +2,42 @@
 
 import { AlertTriangle, CalendarDays, ClipboardCheck, LoaderCircle, MapPin, Plus, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
+import { saveOperationsChecklist, toggleOperationsChecklistStep } from "@/app/operations/actions";
 import type { OperationsChecklistRecord } from "@/lib/operations/data";
+import type { OperationsPersistence } from "@/lib/operations/repository";
 import { formatOperationsDate, readOperationsChecklists, writeOperationsChecklists } from "@/lib/operations/storage";
 
-export function OperationsChecklistManager() {
-  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(null);
-  const [error, setError] = useState("");
+export function OperationsChecklistManager({ initialChecklists = [], persistence = "demo", initialError = "" }: { initialChecklists?: OperationsChecklistRecord[]; persistence?: OperationsPersistence; initialError?: string }) {
+  const [checklists, setChecklists] = useState<OperationsChecklistRecord[] | null>(persistence === "supabase" ? initialChecklists : null);
+  const [error, setError] = useState(initialError);
   const [title, setTitle] = useState("");
   const [location, setLocation] = useState("Charleston");
   const [owner, setOwner] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [stepsText, setStepsText] = useState("");
 
-  useEffect(() => { const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); } catch { setError("Saved checklists could not be loaded from this browser."); setChecklists([]); } }, 0); return () => window.clearTimeout(timer); }, []);
+  useEffect(() => { if (persistence === "supabase") return; const timer = window.setTimeout(() => { try { setChecklists(readOperationsChecklists()); } catch { setError("Saved checklists could not be loaded from this browser."); setChecklists([]); } }, 0); return () => window.clearTimeout(timer); }, [persistence]);
 
   function save(next: OperationsChecklistRecord[]) {
     try { writeOperationsChecklists(next); setChecklists(next); setError(""); }
     catch { setError("Checklist changes could not be saved in this browser."); }
   }
 
-  function createChecklist(event: React.FormEvent<HTMLFormElement>) {
+  async function createChecklist(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const stepTitles = stepsText.split("\n").map((step) => step.trim()).filter(Boolean);
     if (title.trim().length < 2 || owner.trim().length < 2 || !dueDate || !stepTitles.length) { setError("Add a title, owner, due date, and at least one checklist step."); return; }
-    const next: OperationsChecklistRecord = { id: crypto.randomUUID(), title: title.trim(), location, owner: owner.trim(), dueDate, createdAt: new Date().toISOString(), steps: stepTitles.map((stepTitle) => ({ id: crypto.randomUUID(), title: stepTitle, complete: false })) };
-    save([next, ...(checklists ?? [])]); setTitle(""); setOwner(""); setDueDate(""); setStepsText("");
+    const input = { title: title.trim(), location, owner: owner.trim(), dueDate, steps: stepTitles.map((stepTitle) => ({ id: "", title: stepTitle, complete: false })) };
+    if (persistence === "supabase") { const result = await saveOperationsChecklist(input); if (result.error || !result.record) { setError(result.error ?? "Checklist could not be created."); return; } setChecklists([result.record, ...(checklists ?? [])]); setError(""); }
+    else { const next: OperationsChecklistRecord = { ...input, id: crypto.randomUUID(), createdAt: new Date().toISOString(), steps: stepTitles.map((stepTitle) => ({ id: crypto.randomUUID(), title: stepTitle, complete: false })) }; save([next, ...(checklists ?? [])]); }
+    setTitle(""); setOwner(""); setDueDate(""); setStepsText("");
   }
 
-  function toggleStep(checklistId: string, stepId: string) {
+  async function toggleStep(checklistId: string, stepId: string) {
     if (!checklists) return;
-    save(checklists.map((checklist) => checklist.id === checklistId ? { ...checklist, steps: checklist.steps.map((step) => step.id === stepId ? { ...step, complete: !step.complete } : step) } : checklist));
+    const current = checklists; const step = current.find((item) => item.id === checklistId)?.steps.find((item) => item.id === stepId); if (!step) return;
+    const next = current.map((checklist) => checklist.id === checklistId ? { ...checklist, steps: checklist.steps.map((item) => item.id === stepId ? { ...item, complete: !item.complete } : item) } : checklist);
+    if (persistence === "demo") save(next); else { setChecklists(next); const result = await toggleOperationsChecklistStep(checklistId, stepId, !step.complete); if (result.error) { setChecklists(current); setError(result.error); } }
   }
 
   if (checklists === null && !error) return <div className="card operations-loading"><LoaderCircle className="spin" size={22}/><div><h2>Loading checklists</h2><p>Checking this browser for saved operations work.</p></div></div>;

@@ -6,13 +6,15 @@ import { useEffect, useState } from "react";
 import { createPersistentGrowthOutcome, createPersistentGrowthPlan, deletePersistentGrowthOutcome, togglePersistentGrowthTask } from "@/app/growth/actions";
 import type { GrowthOpportunity, GrowthPlan } from "@/lib/growth/data";
 import { formatGrowthDate, readGrowthPlans, writeGrowthPlans } from "@/lib/growth/storage";
+import type { OrganizationLocation } from "@/lib/locations";
 
-export function GrowthActionPlan({ opportunity, initialPlan, persistence }: { opportunity: GrowthOpportunity; initialPlan: GrowthPlan | null; persistence: "demo" | "supabase" }) {
+export function GrowthActionPlan({ opportunity, initialPlan, persistence, locations }: { opportunity: GrowthOpportunity; initialPlan: GrowthPlan | null; persistence: "demo" | "supabase"; locations: OrganizationLocation[] }) {
   const [ready, setReady] = useState(persistence === "supabase");
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<GrowthPlan | null>(initialPlan);
   const [saving, setSaving] = useState(false);
   const [owner, setOwner] = useState("BGC Growth Team");
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const [targetDate, setTargetDate] = useState("");
   const [targetMeasure, setTargetMeasure] = useState(opportunity.measures[0] ?? "");
   const [outcomeDate, setOutcomeDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -43,9 +45,10 @@ export function GrowthActionPlan({ opportunity, initialPlan, persistence }: { op
   async function createPlan(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!targetDate) { setError("Choose a target date before creating the plan."); return; }
-    const next = { id: crypto.randomUUID(), opportunitySlug: opportunity.slug, title: opportunity.title, owner, targetDate, targetMeasure, status: "Not started" as const, tasks: opportunity.actions.map((title) => ({ title, complete: false })), outcomes: [], createdAt: new Date().toISOString() };
+    const locationName = locations.find((location) => location.id === locationId)?.name ?? "All locations";
+    const next = { id: crypto.randomUUID(), opportunitySlug: opportunity.slug, title: opportunity.title, locationId: locationId || null, locationName, owner, targetDate, targetMeasure, status: "Not started" as const, tasks: opportunity.actions.map((title) => ({ title, complete: false })), outcomes: [], createdAt: new Date().toISOString() };
     if (persistence === "demo") { save(next); return; }
-    setSaving(true); const result = await createPersistentGrowthPlan({ opportunitySlug: opportunity.slug, title: opportunity.title, owner, targetDate, targetMeasure, tasks: opportunity.actions }); setSaving(false);
+    setSaving(true); const result = await createPersistentGrowthPlan({ opportunitySlug: opportunity.slug, title: opportunity.title, locationId: locationId || null, locationName, owner, targetDate, targetMeasure, tasks: opportunity.actions }); setSaving(false);
     if (result.error) setError(result.error); else if (result.plan) { setPlan(result.plan); setError(""); }
   }
 
@@ -79,7 +82,7 @@ export function GrowthActionPlan({ opportunity, initialPlan, persistence }: { op
 
   if (!ready) return <section className="card growth-plan-state"><LoaderCircle className="spin" size={22}/><div><h2>Loading saved action plan</h2><p>Checking this browser for local prototype data.</p></div></section>;
   if (error && !plan) return <section className="card error-card growth-plan-state"><AlertTriangle size={22}/><div><h2>Action plan unavailable</h2><p>{error}</p></div></section>;
-  if (!plan) return <section className="card growth-plan-builder"><div className="metric-row"><div><span className="badge blue">{persistence === "demo" ? "Local prototype" : "Shared workspace"}</span><h2>Create an action plan</h2></div><span className="metric-icon"><ClipboardList size={18}/></span></div><p>Turn this sample opportunity into an accountable validation plan. {persistence === "demo" ? "It will be saved only in this browser." : "It will be shared with members of this organization."}</p>{error && <p className="form-error">{error}</p>}<form className="form-stack" onSubmit={createPlan}><label><span className="label">Plan owner</span><input className="input" required value={owner} onChange={(event) => setOwner(event.target.value)} /></label><div className="grid grid-2"><label><span className="label">Target date</span><input className="input" required type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} /></label><label><span className="label">Primary measure</span><select className="input" value={targetMeasure} onChange={(event) => setTargetMeasure(event.target.value)}>{opportunity.measures.map((measure) => <option key={measure}>{measure}</option>)}</select></label></div><button className="btn btn-primary" type="submit" disabled={saving}>{saving ? <><LoaderCircle className="spin" size={16}/> Saving plan</> : <>Create action plan <ArrowRight size={16}/></>}</button></form></section>;
+  if (!plan) return <section className="card growth-plan-builder"><div className="metric-row"><div><span className="badge blue">{persistence === "demo" ? "Local prototype" : "Shared workspace"}</span><h2>Create an action plan</h2></div><span className="metric-icon"><ClipboardList size={18}/></span></div><p>Turn this sample opportunity into an accountable validation plan. {persistence === "demo" ? "It will be saved only in this browser." : "It will be shared with members of this organization."}</p>{error && <p className="form-error">{error}</p>}<form className="form-stack" onSubmit={createPlan}>{locations.length > 0 && <label><span className="label">Location</span><select className="input" required value={locationId} onChange={(event) => setLocationId(event.target.value)}>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}<label><span className="label">Plan owner</span><input className="input" required value={owner} onChange={(event) => setOwner(event.target.value)} /></label><div className="grid grid-2"><label><span className="label">Target date</span><input className="input" required type="date" value={targetDate} onChange={(event) => setTargetDate(event.target.value)} /></label><label><span className="label">Primary measure</span><select className="input" value={targetMeasure} onChange={(event) => setTargetMeasure(event.target.value)}>{opportunity.measures.map((measure) => <option key={measure}>{measure}</option>)}</select></label></div><button className="btn btn-primary" type="submit" disabled={saving}>{saving ? <><LoaderCircle className="spin" size={16}/> Saving plan</> : <>Create action plan <ArrowRight size={16}/></>}</button></form></section>;
 
   const completed = plan.tasks.filter((task) => task.complete).length;
   const progress = Math.round(completed / plan.tasks.length * 100);

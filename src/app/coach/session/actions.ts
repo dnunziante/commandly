@@ -32,7 +32,7 @@ function calculateScores(rounds: RoundRow[], choices: number[], weights: Record<
   return { score, closerScores };
 }
 
-export async function completeCoachSession(scenarioId: string, selectedOptionIndices: number[]): Promise<CompleteCoachSessionResult> {
+export async function completeCoachSession(scenarioId: string, selectedOptionIndices: number[], locationId: string | null): Promise<CompleteCoachSessionResult> {
   if (isLocalDemoMode() || !isSupabaseConfigured()) return { sessionId: "demo-review" };
   if (!/^[0-9a-f-]{36}$/i.test(scenarioId) || !Array.isArray(selectedOptionIndices)) return { error: "That practice response is invalid." };
 
@@ -40,6 +40,10 @@ export async function completeCoachSession(scenarioId: string, selectedOptionInd
   if (!viewer?.organizationId) return { error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
+  if (locationId) {
+    const { data: location } = await supabase.from("locations").select("id").eq("id", locationId).eq("organization_id", viewer.organizationId).maybeSingle();
+    if (!location) return { error: "That location is not part of this organization." };
+  }
   const { data: scenario, error: scenarioError } = await supabase
     .from("coach_scenarios")
     .select("id, rubric_weights, coach_scenario_rounds(round_number, customer_prompt, response_options, preferred_option_indices, skill_impacts)")
@@ -65,6 +69,7 @@ export async function completeCoachSession(scenarioId: string, selectedOptionInd
     organization_id: viewer.organizationId,
     scenario_id: scenario.id,
     user_id: viewer.id,
+    location_id: locationId,
     status: "in_progress",
   }).select("id").single();
   if (sessionError || !session) return { error: "The practice session could not be saved." };

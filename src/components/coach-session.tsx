@@ -5,14 +5,16 @@ import { ArrowRight, CheckCircle2, ChevronLeft, LoaderCircle, MessageCircle, Rot
 import { useState, useTransition } from "react";
 import { completeCoachSession } from "@/app/coach/session/actions";
 import type { CoachScenario } from "@/lib/coach/types";
+import type { OrganizationLocation } from "@/lib/locations";
 
-export function CoachSession({ scenario }: { scenario: CoachScenario }) {
+export function CoachSession({ scenario, locations }: { scenario: CoachScenario; locations: OrganizationLocation[] }) {
   const router = useRouter();
   const [roundIndex, setRoundIndex] = useState(0);
   const [choices, setChoices] = useState<Array<number | null>>(() => scenario.rounds.map(() => null));
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [isPending, startTransition] = useTransition();
+  const [locationId, setLocationId] = useState(locations[0]?.id ?? "");
   const round = scenario.rounds[roundIndex];
   const choice = choices[roundIndex];
   const finalRound = roundIndex === scenario.rounds.length - 1;
@@ -41,7 +43,7 @@ export function CoachSession({ scenario }: { scenario: CoachScenario }) {
     const completedChoices = choices.filter((value): value is number => value !== null);
     setError("");
     startTransition(async () => {
-      const result = await completeCoachSession(scenario.id, completedChoices);
+      const result = await completeCoachSession(scenario.id, completedChoices, locationId || null);
       if (result.error || !result.sessionId) {
         setError(result.error || "The practice session could not be saved.");
         return;
@@ -67,7 +69,7 @@ export function CoachSession({ scenario }: { scenario: CoachScenario }) {
       <div className="coach-actions"><button className="btn btn-ghost" onClick={reset}><RotateCcw size={16}/> Restart</button>{roundIndex > 0 && !submitted && <button className="btn btn-ghost" onClick={() => { setRoundIndex((current) => current - 1); setSubmitted(false); }}><ChevronLeft size={16}/> Previous</button>}<button className="btn btn-primary" disabled={choice === null || submitted} onClick={() => setSubmitted(true)}>Submit response <ArrowRight size={16}/></button></div>
     </section>
     <aside className="coach-side-stack" aria-label="Coaching panel">
-      <section className="card"><span className="badge"><Sparkles size={13}/> Practice objective</span><h2>{scenario.title}</h2><p>{scenario.goal}</p><div className="chips">{round.skillImpacts.map((skill) => <span className="chip" key={skill}>{skill}</span>)}</div></section>
+      <section className="card"><span className="badge"><Sparkles size={13}/> Practice objective</span><h2>{scenario.title}</h2><p>{scenario.goal}</p>{locations.length > 0 && <label><span className="label">Location</span><select className="input" value={locationId} onChange={(event) => setLocationId(event.target.value)}>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></label>}<div className="chips">{round.skillImpacts.map((skill) => <span className="chip" key={skill}>{skill}</span>)}</div></section>
       <section className={`card coach-feedback ${submitted ? "ready" : ""}`} aria-live="polite">
         {submitted ? <><CheckCircle2 size={27}/><h2>Round feedback</h2><p>{preferred ? "Strong response. You kept the conversation consultative and advanced the skills highlighted for this round." : "You moved forward before completing enough discovery. Slow down and invite the customer to clarify their priorities."}</p><strong>Skills evaluated</strong><p>{round.skillImpacts.join(" · ")}</p>{error && <p className="form-error" role="alert">{error}</p>}<button className="btn btn-primary" disabled={isPending} onClick={continueSession}>{isPending ? <><LoaderCircle className="spin" size={16}/> Saving session...</> : finalRound ? <>Complete session <ArrowRight size={16}/></> : <>Continue to round {roundIndex + 2} <ArrowRight size={16}/></>}</button></> : <><MessageCircle size={27}/><h2>Feedback appears here</h2><p>Select and submit a response. Your final score combines all rounds using this scenario&apos;s C.L.O.S.E.R. weights.</p></>}
       </section>

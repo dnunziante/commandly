@@ -4,10 +4,11 @@ import { getViewer } from "@/lib/auth/viewer";
 import { products as demoProducts } from "@/lib/data";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductDTO, ProductResult, ProductStatus } from "./types";
+import type { ProductDTO, ProductFamilyDTO, ProductFamilyResult, ProductResult, ProductStatus, SalesGuideDTO } from "./types";
 
 type ProductRow = {
   id: string;
+  family_id: string | null;
   name: string;
   slug: string;
   model: string;
@@ -15,10 +16,33 @@ type ProductRow = {
   base_price_cents: number;
   range_text: string;
   seats_text: string;
+  powertrain_text: string;
+  sort_order: number;
   highlights: string[] | null;
   visual_theme: string;
+  image_path: string | null;
+  image_paths: string[] | null;
+  sales_guide: Partial<SalesGuideDTO> | null;
   status: "draft" | "published" | "archived";
 };
+
+type ProductFamilyRow = {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  image_path: string | null;
+  products: { count: number }[] | null;
+};
+
+const demoFamilies: ProductFamilyDTO[] = [
+  { id: "demo-activev-pulse", name: "ActivEV Pulse", slug: "activev-pulse", description: "Explore every ActivEV Pulse model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
+  { id: "demo-bintelli-beyond", name: "Bintelli Beyond", slug: "bintelli-beyond", description: "Explore every Bintelli Beyond model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
+  { id: "demo-bintelli-nexus", name: "Bintelli Nexus", slug: "bintelli-nexus", description: "Explore every Bintelli Nexus model and configuration.", imageUrl: null, imagePath: null, productCount: 1 },
+  { id: "demo-sivo-edge", name: "SIVO Edge", slug: "sivo-edge", description: "Explore every SIVO Edge model and configuration.", imageUrl: null, imagePath: null, productCount: 0 },
+  { id: "demo-accessories", name: "Accessories", slug: "accessories", description: "Browse available accessories and add-on options.", imageUrl: null, imagePath: null, productCount: 0 },
+  { id: "demo-warranties", name: "Warranties", slug: "warranties", description: "Browse available warranty plans and coverage options.", imageUrl: null, imagePath: null, productCount: 0 },
+];
 
 const statusLabels: Record<ProductRow["status"], ProductStatus> = {
   draft: "Draft",
@@ -26,9 +50,21 @@ const statusLabels: Record<ProductRow["status"], ProductStatus> = {
   archived: "Archived",
 };
 
-function toDTO(row: ProductRow): ProductDTO {
+export const emptySalesGuide: SalesGuideDTO = {
+  bestFitCustomer: "",
+  sellingPoints: [],
+  discoveryQuestions: [],
+  demonstrationSteps: [],
+  objectionResponses: [],
+  accessoryOpportunities: [],
+  followUpNotes: "",
+  disclaimers: "",
+};
+
+function toDTO(row: ProductRow, imageUrls: string[] = [], imagePaths: string[] = []): ProductDTO {
   return {
     id: row.id,
+    familyId: row.family_id,
     name: row.name,
     slug: row.slug,
     model: row.model,
@@ -36,15 +72,21 @@ function toDTO(row: ProductRow): ProductDTO {
     price: row.base_price_cents / 100,
     range: row.range_text,
     seats: row.seats_text,
+    powertrain: row.powertrain_text,
+    sortOrder: row.sort_order,
     highlights: row.highlights || [],
     color: row.visual_theme,
+    imageUrl: imageUrls[0] || null,
+    imageUrls,
+    imagePaths,
+    salesGuide: { ...emptySalesGuide, ...(row.sales_guide || {}) },
     status: statusLabels[row.status],
   };
 }
 
-export async function getTenantProducts(options: { includeDrafts?: boolean } = {}): Promise<ProductResult> {
+export async function getTenantProducts(options: { includeDrafts?: boolean; familyId?: string } = {}): Promise<ProductResult> {
   if (isLocalDemoMode() || !isSupabaseConfigured()) {
-    return { products: demoProducts, source: "demo" };
+    return { products: options.familyId ? demoProducts.filter((product) => product.familyId === options.familyId) : demoProducts, source: "demo" };
   }
 
   const viewer = await getViewer();
@@ -55,16 +97,90 @@ export async function getTenantProducts(options: { includeDrafts?: boolean } = {
   const supabase = await createClient();
   let query = supabase
     .from("products")
-    .select("id, name, slug, model, description, base_price_cents, range_text, seats_text, highlights, visual_theme, status")
+    .select("id, family_id, name, slug, model, description, base_price_cents, range_text, seats_text, powertrain_text, sort_order, highlights, visual_theme, image_path, image_paths, sales_guide, status")
     .eq("organization_id", viewer.organizationId)
+    .order("sort_order")
     .order("name");
 
   if (!options.includeDrafts) query = query.eq("status", "published");
+  if (options.familyId) query = query.eq("family_id", options.familyId);
 
   const { data, error } = await query;
   if (error) {
     return { products: [], source: "supabase", error: "Products could not be loaded from the workspace." };
   }
 
-  return { products: (data as ProductRow[]).map(toDTO), source: "supabase" };
+  const rows = data as ProductRow[];
+  const paths = Array.from(new Set(rows.flatMap((row) => row.image_paths?.length ? row.image_paths : row.image_path ? [row.image_path] : [])));
+  const imageUrls = new Map<string, string>();
+
+  if (paths.length) {
+    const { data: signedImages } = await supabase.storage
+      .from("product-images")
+      .createSignedUrls(paths, 60 * 60);
+
+    signedImages?.forEach((image) => {
+      if (image.path && image.signedUrl) imageUrls.set(image.path, image.signedUrl);
+    });
+  }
+
+  return {
+    products: rows.map((row) => {
+      const productPaths = row.image_paths?.length ? row.image_paths : row.image_path ? [row.image_path] : [];
+      return toDTO(row, productPaths.map((path) => imageUrls.get(path)).filter((url): url is string => Boolean(url)), productPaths);
+    }),
+    source: "supabase",
+  };
+}
+
+export async function getTenantProductFamilies(): Promise<ProductFamilyResult> {
+  if (isLocalDemoMode() || !isSupabaseConfigured()) return { families: demoFamilies, source: "demo" };
+
+  const viewer = await getViewer();
+  if (!viewer?.organizationId) return { families: [], source: "supabase", error: "Your account is not assigned to an organization." };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("product_families")
+    .select("id, name, slug, description, image_path, products(count)")
+    .eq("organization_id", viewer.organizationId)
+    .order("sort_order")
+    .order("name");
+
+  if (error) return { families: [], source: "supabase", error: "Product families could not be loaded from the workspace." };
+  const rows = data as ProductFamilyRow[];
+  const paths = rows.map((row) => row.image_path).filter((path): path is string => Boolean(path));
+  const signedUrls = new Map<string, string>();
+  if (paths.length) {
+    const { data: signedImages } = await supabase.storage.from("product-images").createSignedUrls(paths, 60 * 60);
+    signedImages?.forEach((image) => { if (image.path && image.signedUrl) signedUrls.set(image.path, image.signedUrl); });
+  }
+
+  return {
+    families: rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      slug: row.slug,
+      description: row.description,
+      imagePath: row.image_path,
+      imageUrl: row.image_path ? signedUrls.get(row.image_path) || null : null,
+      productCount: row.products?.[0]?.count || 0,
+    })),
+    source: "supabase",
+  };
+}
+
+export async function getTenantProductFamilyBySlug(slug: string) {
+  const result = await getTenantProductFamilies();
+  return { family: result.families.find((family) => family.slug === slug) || null, error: result.error };
+}
+
+export async function getTenantProductBySlug(slug: string) {
+  const result = await getTenantProducts();
+  return { product: result.products.find((product) => product.slug === slug) || null, error: result.error };
+}
+
+export async function getTenantProductById(id: string) {
+  const result = await getTenantProducts({ includeDrafts: true });
+  return { product: result.products.find((product) => product.id === id) || null, error: result.error };
 }

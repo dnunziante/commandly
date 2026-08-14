@@ -41,7 +41,8 @@ function initials(name: string) {
 }
 
 export async function getViewer(): Promise<Viewer | null> {
-  if (isLocalDemoMode() || !isSupabaseConfigured()) return demoViewer;
+  if (isLocalDemoMode()) return demoViewer;
+  if (!isSupabaseConfigured()) return null;
 
   const supabase = await createClient();
   const {

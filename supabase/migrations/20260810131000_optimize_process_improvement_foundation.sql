@@ -1,0 +1,8 @@
+-- Cover Process Improvement foreign keys reported by the database advisor.
+create index operations_improvement_actions_org_idx on public.operations_improvement_actions(organization_id);
+create index operations_improvement_actions_verified_by_idx on public.operations_improvement_actions(verified_by);
+create index operations_improvement_measurements_org_idx on public.operations_improvement_measurements(organization_id);
+create index operations_improvement_history_org_idx on public.operations_improvement_status_history(organization_id);
+create index operations_improvement_whys_org_idx on public.operations_improvement_whys(organization_id);
+create index operations_improvements_reviewed_by_idx on public.operations_improvements(reviewed_by);
+create index operations_improvements_verified_by_idx on public.operations_improvements(verified_by);

@@ -1,4 +1,5 @@
 import { Award, BookOpen, BookOpenCheck, CheckCircle2, Clock, FileText, PlayCircle } from "lucide-react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { getTrainingLessons } from "@/lib/training/data";
@@ -29,7 +30,7 @@ export default async function Training() {
       <h2>{lesson.title}</h2>
       <p>{lesson.description}</p>
       <small>Source: {lesson.sourceFilename}</small>
-      <button className="btn btn-primary" type="button"><PlayCircle size={16}/> Start lesson</button>
+      <Link className="btn btn-primary" href="/knowledge-base"><FileText size={16}/> View approved source</Link>
     </article>)}</div> : <div className="card output empty"><div><BookOpenCheck size={30}/><h2>No knowledge-based lessons yet</h2><p>Upload a document in Knowledge Base and keep “Add to Training” selected.</p></div></div>}
 
     <div className="section-heading"><h2>Sample learning path</h2><span className="badge">BGC Sales Foundations</span></div>

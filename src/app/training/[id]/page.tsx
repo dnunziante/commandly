@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { ArrowLeft, BookOpenCheck, Clock, ExternalLink, FileText, ShieldCheck } from "lucide-react";
 import { notFound } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -12,7 +11,7 @@ export default async function TrainingLessonPage({ params }: PageProps<"/trainin
 
   return <AppShell title="Training">
     <PageHeader eyebrow="Knowledge-based lesson" title={lesson.title} description={lesson.description}/>
-    <Link className="text-button training-back-link" href="/training"><ArrowLeft size={15}/> Back to Training</Link>
+    <form action="/training" method="get"><button className="text-button training-back-link" type="submit"><ArrowLeft size={15}/> Back to Training</button></form>
     <div className="training-detail-layout">
       <article className="card training-detail-card">
         <span className="metric-icon"><BookOpenCheck size={20}/></span>

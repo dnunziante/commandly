@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getViewer } from "@/lib/auth/viewer";
+import { demoTrainingLessons, demoTrainingModules } from "@/lib/demo/training";
 import { isLocalDemoMode } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { toDisplayTrainingCategory } from "./categories";
@@ -17,9 +18,8 @@ type TrainingRow = {
 };
 
 export async function getTrainingLessons(): Promise<TrainingResult> {
-  if (isLocalDemoMode()) return { lessons: [] };
-
   const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode()) return { lessons: demoTrainingLessons };
   if (!viewer?.organizationId) return { lessons: [], error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
@@ -47,9 +47,9 @@ export async function getTrainingLessons(): Promise<TrainingResult> {
 }
 
 export async function getTrainingLesson(lessonId: string): Promise<TrainingLessonDTO | null> {
-  if (!/^[0-9a-f-]{36}$/i.test(lessonId) || isLocalDemoMode()) return null;
-
   const viewer = await getViewer();
+  if (!/^[0-9a-f-]{36}$/i.test(lessonId)) return null;
+  if (viewer?.demo || isLocalDemoMode()) return demoTrainingLessons.find((lesson)=>lesson.id===lessonId)??null;
   if (!viewer?.organizationId) return null;
 
   const supabase = await createClient();
@@ -88,9 +88,8 @@ type TrainingModuleRow = {
 type TrainingModuleLessonRow = { module_id: string; lesson_id: string; sort_order: number };
 
 export async function getTrainingModules(options: { includeDrafts?: boolean } = {}): Promise<TrainingModulesResult> {
-  if (isLocalDemoMode()) return { modules: [], lessons: [] };
-
   const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode()) return { modules: demoTrainingModules, lessons: demoTrainingLessons };
   if (!viewer?.organizationId) return { modules: [], lessons: [], error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();

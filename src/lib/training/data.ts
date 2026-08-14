@@ -12,7 +12,7 @@ type TrainingRow = {
   description: string;
   estimated_minutes: number;
   created_at: string;
-  knowledge_documents: { original_filename: string; collection: string } | null;
+  knowledge_documents: { original_filename: string; collection: string; mime_type?: string } | null;
 };
 
 export async function getTrainingLessons(): Promise<TrainingResult> {
@@ -42,5 +42,35 @@ export async function getTrainingLessons(): Promise<TrainingResult> {
       collection: row.knowledge_documents?.collection ?? "General",
       createdAt: row.created_at,
     })),
+  };
+}
+
+export async function getTrainingLesson(lessonId: string): Promise<TrainingLessonDTO | null> {
+  if (!/^[0-9a-f-]{36}$/i.test(lessonId) || isLocalDemoMode()) return null;
+
+  const viewer = await getViewer();
+  if (!viewer?.organizationId) return null;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("training_lessons")
+    .select("id, knowledge_document_id, title, description, estimated_minutes, created_at, knowledge_documents(original_filename, collection, mime_type)")
+    .eq("id", lessonId)
+    .eq("organization_id", viewer.organizationId)
+    .eq("is_published", true)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row = data as unknown as TrainingRow;
+  return {
+    id: row.id,
+    knowledgeDocumentId: row.knowledge_document_id,
+    title: row.title,
+    description: row.description,
+    estimatedMinutes: row.estimated_minutes,
+    sourceFilename: row.knowledge_documents?.original_filename ?? "Knowledge document",
+    mimeType: row.knowledge_documents?.mime_type,
+    collection: row.knowledge_documents?.collection ?? "General",
+    createdAt: row.created_at,
   };
 }

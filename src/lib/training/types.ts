@@ -5,6 +5,7 @@ export type TrainingLessonDTO = {
   description: string;
   estimatedMinutes: number;
   sourceFilename: string;
+  mimeType?: string;
   collection: string;
   createdAt: string;
 };

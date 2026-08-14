@@ -19,6 +19,7 @@ export type TrainingModuleDTO = {
   id: string;
   title: string;
   description: string;
+  category: string;
   isPublished: boolean;
   createdAt: string;
   lessons: TrainingLessonDTO[];

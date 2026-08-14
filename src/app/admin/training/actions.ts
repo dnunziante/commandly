@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { getViewer } from "@/lib/auth/viewer";
 import { isLocalDemoMode } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
+import { isTrainingCategory } from "@/lib/training/categories";
 
 export type TrainingModuleActionState = { error: string; success: string };
 
@@ -21,10 +22,12 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
   const moduleId = String(formData.get("moduleId") || "");
   const title = String(formData.get("title") || "").trim();
   const description = String(formData.get("description") || "").trim();
+  const category = String(formData.get("category") || "");
   const isPublished = formData.get("isPublished") === "on";
   const requestedLessonIds = [...new Set(formData.getAll("lessonId").map(String).filter((id) => uuidPattern.test(id)))];
 
   if (title.length < 2 || title.length > 140) return { error: "Enter a module title between 2 and 140 characters.", success: "" };
+  if (!isTrainingCategory(category)) return { error: "Choose a valid training category.", success: "" };
   if (requestedLessonIds.length < 1) return { error: "Choose at least one lesson for this module.", success: "" };
 
   const supabase = await createClient();
@@ -48,6 +51,7 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
     const { data, error } = await supabase.from("training_modules").update({
       title,
       description,
+      category,
       is_published: isPublished,
       updated_at: new Date().toISOString(),
     }).eq("id", moduleId).eq("organization_id", viewer.organizationId).select("id").maybeSingle();
@@ -58,6 +62,7 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
       created_by: viewer.id,
       title,
       description,
+      category,
       is_published: isPublished,
     }).select("id").single();
     if (error || !data) return { error: "The module could not be created.", success: "" };

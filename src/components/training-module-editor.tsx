@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { CheckCircle2, LoaderCircle, Save } from "lucide-react";
 import { saveTrainingModule, type TrainingModuleActionState } from "@/app/admin/training/actions";
+import { TRAINING_CATEGORIES } from "@/lib/training/categories";
 import type { TrainingLessonDTO, TrainingModuleDTO } from "@/lib/training/types";
 
 const initialState: TrainingModuleActionState = { error: "", success: "" };
@@ -22,6 +23,7 @@ export function TrainingModuleEditor({ lessons, module }: { lessons: TrainingLes
     <div className="metric-row"><div><h2>{module ? module.title : "Create a training module"}</h2><p>{module ? "Edit its details, lessons, and order." : "Group existing knowledge-based lessons into one learning path."}</p></div>{module ? <span className={`badge ${module.isPublished ? "blue" : "amber"}`}>{module.isPublished ? "Published" : "Draft"}</span> : null}</div>
     <div><label className="label" htmlFor={`module-title-${module?.id ?? "new"}`}>Module title</label><input className="input" id={`module-title-${module?.id ?? "new"}`} name="title" defaultValue={module?.title} required placeholder="BGC Sales Foundations"/></div>
     <div><label className="label" htmlFor={`module-description-${module?.id ?? "new"}`}>Description</label><textarea className="input" id={`module-description-${module?.id ?? "new"}`} name="description" defaultValue={module?.description} rows={3} placeholder="What the team will learn in this module."/></div>
+    <div><label className="label" htmlFor={`module-category-${module?.id ?? "new"}`}>Training category</label><select className="input" id={`module-category-${module?.id ?? "new"}`} name="category" defaultValue={module?.category ?? "General"}>{TRAINING_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}</select><small className="field-help">This category appears with the module on the Training page.</small></div>
     <fieldset className="rubric-fields"><legend>Lessons and order</legend><div className="training-module-lessons">{lessons.map((lesson, index) => {
       const order = selectedOrder.get(lesson.id);
       return <label className="training-module-lesson" key={lesson.id}><input name="lessonId" type="checkbox" value={lesson.id} defaultChecked={Boolean(order)}/><span><strong>{lesson.title}</strong><small>{lesson.estimatedMinutes} min · {lesson.sourceFilename}</small></span><input aria-label={`Order for ${lesson.title}`} className="input module-order" name={`order-${lesson.id}`} type="number" min="1" max="999" defaultValue={order ?? index + 1}/></label>;

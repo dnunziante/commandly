@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { ArrowRight, LoaderCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
@@ -35,7 +36,7 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
   }
 
   return (
-    <form className="login-form" action={submit}>
+    <div className="login-form">
       <div className="eyebrow">Welcome back</div>
       <h1>Sign in to your workspace</h1>
       <p>
@@ -45,7 +46,7 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
             ? "Use your organization account to continue."
             : "Workspace sign-in is not configured. Ask the platform owner to complete the deployment settings."}
       </p>
-      <div className="form-stack" style={{ marginTop: 25 }}>
+      <form action={submit} className="form-stack" style={{ marginTop: 25 }}>
         <div>
           <label className="label" htmlFor="email">Work email</label>
           <input className="input" disabled={!configured && !demoMode} id="email" name="email" type="email" autoComplete="email" required={!demoMode} placeholder="you@dealership.com" />
@@ -58,7 +59,12 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
         <button className="btn btn-primary" disabled={pending || (!configured && !demoMode)} type="submit">
           {pending ? <><LoaderCircle className="spin" size={16}/> Signing in…</> : <>{demoMode ? "Continue to demo" : "Sign in"} <ArrowRight size={16}/></>}
         </button>
-      </div>
+      </form>
+      {!demoMode && <div className="form-stack demo-access">
+        <div className="login-divider"><span>or</span></div>
+        <Link className="btn btn-secondary" href={`/demo?next=${encodeURIComponent(nextPath)}`}>Explore the demo <ArrowRight size={16}/></Link>
+        <p className="demo-access-note">No account required. Demo activity uses sample information and cannot change your organization&apos;s data.</p>
+      </div>}
       <div className="demo-note">
         {demoMode
           ? "Local demo mode is active and is automatically disabled in production."
@@ -66,6 +72,6 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
             ? "Authentication is handled securely by Supabase. Credentials are never stored in this page."
             : "Set the Supabase URL and publishable key in the deployment environment before inviting users."}
       </div>
-    </form>
+    </div>
   );
 }

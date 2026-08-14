@@ -1,8 +1,15 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
+import { isLocalDemoMode, isSupabaseConfigured, publicDemoCookieName } from "@/lib/supabase/config";
 
 export async function proxy(request: NextRequest) {
+  if (request.cookies.get(publicDemoCookieName)?.value === "1") {
+    if (request.nextUrl.pathname.startsWith("/admin")) {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
+    return NextResponse.next();
+  }
+
   if (isLocalDemoMode()) return NextResponse.next();
 
   if (!isSupabaseConfigured()) {

@@ -1,7 +1,8 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
+import { cookies } from "next/headers";
+import { isLocalDemoMode, isSupabaseConfigured, publicDemoCookieName } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
 export type LoginState = { error: string };
@@ -34,6 +35,7 @@ export async function login(
 }
 
 export async function logout() {
+  (await cookies()).delete(publicDemoCookieName);
   if (isSupabaseConfigured()) {
     const supabase = await createClient();
     await supabase.auth.signOut();

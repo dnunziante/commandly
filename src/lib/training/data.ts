@@ -79,6 +79,7 @@ type TrainingModuleRow = {
   id: string;
   title: string;
   description: string;
+  category: string;
   is_published: boolean;
   created_at: string;
 };
@@ -94,7 +95,7 @@ export async function getTrainingModules(options: { includeDrafts?: boolean } = 
   const supabase = await createClient();
   let moduleQuery = supabase
     .from("training_modules")
-    .select("id, title, description, is_published, created_at")
+    .select("id, title, description, category, is_published, created_at")
     .eq("organization_id", viewer.organizationId)
     .order("created_at", { ascending: false });
   if (!options.includeDrafts) moduleQuery = moduleQuery.eq("is_published", true);
@@ -121,6 +122,7 @@ export async function getTrainingModules(options: { includeDrafts?: boolean } = 
       id: module.id,
       title: module.title,
       description: module.description,
+      category: module.category,
       isPublished: module.is_published,
       createdAt: module.created_at,
       lessons: assignmentRows

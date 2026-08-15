@@ -1,39 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, LoaderCircle } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
+import { ArrowRight } from "lucide-react";
 
-export function LoginForm({ configured, demoMode, nextPath }: { configured: boolean; demoMode: boolean; nextPath: string }) {
-  const router = useRouter();
-  const [error, setError] = useState("");
-  const [pending, setPending] = useState(false);
-
-  async function submit(formData: FormData) {
-    if (demoMode) {
-      router.push(nextPath);
-      return;
-    }
-    if (!configured) {
-      setError("Workspace sign-in is not configured.");
-      return;
-    }
-    setPending(true);
-    setError("");
-    const email = String(formData.get("email") || "").trim();
-    const password = String(formData.get("password") || "");
-    const supabase = createClient();
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-    if (signInError) {
-      setError(signInError.message === "Invalid login credentials" ? "The email or password is incorrect." : "Sign-in could not be completed. Please try again.");
-      setPending(false);
-      return;
-    }
-    router.push(nextPath);
-    router.refresh();
-  }
+export function LoginForm({ configured, demoMode, nextPath, initialError = "" }: { configured: boolean; demoMode: boolean; nextPath: string; initialError?: string }) {
 
   return (
     <div className="login-form">
@@ -46,7 +16,8 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
             ? "Use your organization account to continue."
             : "Workspace sign-in is not configured. Ask the platform owner to complete the deployment settings."}
       </p>
-      <form action={submit} className="form-stack" style={{ marginTop: 25 }}>
+      <form action="/auth/login" className="form-stack" method="post" style={{ marginTop: 25 }}>
+        <input name="next" type="hidden" value={nextPath} />
         <div>
           <label className="label" htmlFor="email">Work email</label>
           <input className="input" disabled={!configured && !demoMode} id="email" name="email" type="email" autoComplete="email" required={!demoMode} placeholder="you@dealership.com" />
@@ -55,9 +26,9 @@ export function LoginForm({ configured, demoMode, nextPath }: { configured: bool
           <label className="label" htmlFor="password">Password</label>
           <input className="input" disabled={!configured && !demoMode} id="password" name="password" type="password" autoComplete="current-password" required={!demoMode} placeholder="••••••••" />
         </div>
-        {error && <p className="form-error" role="alert">{error}</p>}
-        <button className="btn btn-primary" disabled={pending || (!configured && !demoMode)} type="submit">
-          {pending ? <><LoaderCircle className="spin" size={16}/> Signing in…</> : <>{demoMode ? "Continue to demo" : "Sign in"} <ArrowRight size={16}/></>}
+        {initialError && <p className="form-error" role="alert">{initialError}</p>}
+        <button className="btn btn-primary" disabled={!configured && !demoMode} type="submit">
+          {demoMode ? "Continue to demo" : "Sign in"} <ArrowRight size={16}/>
         </button>
       </form>
       {!demoMode && <div className="form-stack demo-access">

@@ -19,8 +19,16 @@ export async function login(
 
   const email = String(formData.get("email") || "").trim();
   const password = String(formData.get("password") || "");
+  const requestedNext = String(formData.get("next") || "");
+  const nextPath = requestedNext.startsWith("/") && !requestedNext.startsWith("//")
+    ? requestedNext
+    : "/dashboard";
 
   if (!email || !password) {
+    console.warn("[auth/login] missing credentials", {
+      hasEmail: Boolean(email),
+      hasPassword: Boolean(password),
+    });
     return { error: "Enter your email and password." };
   }
 
@@ -28,10 +36,18 @@ export async function login(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    console.error("[auth/login] Supabase rejected sign-in", {
+      code: error.code,
+      name: error.name,
+      status: error.status,
+    });
     return { error: "The email or password is incorrect." };
   }
 
-  redirect("/dashboard");
+  console.info("[auth/login] sign-in accepted", { nextPath });
+  (await cookies()).delete(publicDemoCookieName);
+
+  redirect(nextPath);
 }
 
 export async function logout() {

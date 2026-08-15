@@ -20,6 +20,9 @@ async function requireTenantAdmin() {
 export async function createCoachScenario(_previousState: CoachScenarioActionState, formData: FormData): Promise<CoachScenarioActionState> {
   if (isLocalDemoMode()) return { error: "Scenario editing is disabled in local demo mode. Sign in to the connected workspace to save changes.", success: "" };
   const viewer = await requireTenantAdmin();
+  const scenarioId = String(formData.get("scenarioId") || "");
+  const isEditing = scenarioId.length > 0;
+  if (isEditing && !/^[0-9a-f-]{36}$/i.test(scenarioId)) return { error: "The selected scenario is invalid.", success: "" };
   const title = String(formData.get("title") || "").trim();
   const category = String(formData.get("category") || "").trim();
   const difficulty = String(formData.get("difficulty") || "Foundational");
@@ -44,9 +47,8 @@ export async function createCoachScenario(_previousState: CoachScenarioActionSta
   if (Object.values(rubricWeights).some((value) => !Number.isInteger(value) || value < 0 || value > 100) || weightTotal !== 100) return { error: "C.L.O.S.E.R. weights must be whole numbers totaling 100.", success: "" };
 
   const supabase = await createClient();
-  const { data: scenario, error } = await supabase.from("coach_scenarios").insert({
+  const scenarioValues = {
     organization_id: viewer.organizationId,
-    created_by: viewer.id,
     slug: slugify(title),
     title,
     category,
@@ -60,22 +62,30 @@ export async function createCoachScenario(_previousState: CoachScenarioActionSta
     preferred_option_indices: [0],
     rubric_weights: rubricWeights,
     status,
-  }).select("id").single();
+    updated_at: new Date().toISOString(),
+  };
+  const scenarioQuery = isEditing
+    ? supabase.from("coach_scenarios").update(scenarioValues).eq("id", scenarioId).eq("organization_id", viewer.organizationId)
+    : supabase.from("coach_scenarios").insert({ ...scenarioValues, created_by: viewer.id });
+  const { data: scenario, error } = await scenarioQuery.select("id").single();
 
-  if (error || !scenario) return { error: error?.code === "23505" ? "A scenario with that title already exists." : "The scenario could not be saved.", success: "" };
-  const { error: roundsError } = await supabase.from("coach_scenario_rounds").insert([
+  if (error || !scenario) return { error: error?.code === "23505" ? "A scenario with that title already exists." : `The scenario could not be ${isEditing ? "updated" : "saved"}.`, success: "" };
+  const roundValues = [
     { organization_id: viewer.organizationId, scenario_id: scenario.id, round_number: 1, customer_prompt: opening, response_options: responseOptions, preferred_option_indices: [0], skill_impacts: ["Clarify", "Listen"] },
     { organization_id: viewer.organizationId, scenario_id: scenario.id, round_number: 2, customer_prompt: roundTwoPrompt, response_options: responseOptions, preferred_option_indices: [0], skill_impacts: ["Open", "Solve", "Explain"] },
     { organization_id: viewer.organizationId, scenario_id: scenario.id, round_number: 3, customer_prompt: roundThreePrompt, response_options: responseOptions, preferred_option_indices: [0], skill_impacts: ["Explain", "Recommend"] },
-  ]);
+  ];
+  const { error: roundsError } = isEditing
+    ? await supabase.from("coach_scenario_rounds").upsert(roundValues, { onConflict: "scenario_id,round_number" })
+    : await supabase.from("coach_scenario_rounds").insert(roundValues);
   if (roundsError) {
-    await supabase.from("coach_scenarios").delete().eq("id", scenario.id).eq("organization_id", viewer.organizationId);
-    return { error: "The scenario rounds could not be saved.", success: "" };
+    if (!isEditing) await supabase.from("coach_scenarios").delete().eq("id", scenario.id).eq("organization_id", viewer.organizationId);
+    return { error: `The scenario rounds could not be ${isEditing ? "updated" : "saved"}.`, success: "" };
   }
   revalidatePath("/coach");
   revalidatePath("/coach/scenarios");
   revalidatePath("/admin/coach");
-  return { error: "", success: `${title} was saved.` };
+  return { error: "", success: `${title} was ${isEditing ? "updated" : "saved"}.` };
 }
 
 export async function updateCoachScenarioRubric(_previousState: CoachScenarioActionState, formData: FormData): Promise<CoachScenarioActionState> {

@@ -21,7 +21,7 @@ export default async function AdminProductsPage() {
       <AdminProductForm families={familyResult.families}/>
       <div className="card">
         <div className="metric-row"><h2>Workspace products</h2><span className="badge blue">{result.products.length} total</span></div>
-        {result.products.length ? <AdminProductCategoryList categories={categories.map((family) => ({ ...family, products: result.products.filter((product) => product.familyId === family.id) }))}/> : <div className="output empty"><div><h3>No products yet</h3><p>Add the first product for this organization.</p></div></div>}
+        {result.products.length ? <AdminProductCategoryList key={result.products.map((product) => `${product.id}:${product.status}:${product.sortOrder}`).join("|")} categories={categories.map((family) => ({ ...family, products: result.products.filter((product) => product.familyId === family.id) }))}/> : <div className="output empty"><div><h3>No products yet</h3><p>Add the first product for this organization.</p></div></div>}
       </div>
     </div>
   </AppShell>;

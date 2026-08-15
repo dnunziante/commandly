@@ -53,16 +53,16 @@ function initials(name: string) {
 }
 
 export async function getViewer(): Promise<Viewer | null> {
-  if ((await cookies()).get(publicDemoCookieName)?.value === "1") return publicDemoViewer;
+  const hasPublicDemoCookie = (await cookies()).get(publicDemoCookieName)?.value === "1";
   if (isLocalDemoMode()) return demoViewer;
-  if (!isSupabaseConfigured()) return null;
+  if (!isSupabaseConfigured()) return hasPublicDemoCookie ? publicDemoViewer : null;
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user) return hasPublicDemoCookie ? publicDemoViewer : null;
 
   const { data: membership } = await supabase
     .from("organization_memberships")

@@ -3,16 +3,14 @@ import { NextResponse, type NextRequest } from "next/server";
 import { isLocalDemoMode, isSupabaseConfigured, publicDemoCookieName } from "@/lib/supabase/config";
 
 export async function proxy(request: NextRequest) {
-  if (request.cookies.get(publicDemoCookieName)?.value === "1") {
-    if (request.nextUrl.pathname.startsWith("/admin")) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
-    }
-    return NextResponse.next();
-  }
+  const hasPublicDemoCookie = request.cookies.get(publicDemoCookieName)?.value === "1";
 
   if (isLocalDemoMode()) return NextResponse.next();
 
   if (!isSupabaseConfigured()) {
+    if (hasPublicDemoCookie && !request.nextUrl.pathname.startsWith("/admin")) {
+      return NextResponse.next();
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
@@ -42,6 +40,12 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    if (hasPublicDemoCookie) {
+      if (request.nextUrl.pathname.startsWith("/admin")) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+      return response;
+    }
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.searchParams.set("next", request.nextUrl.pathname);

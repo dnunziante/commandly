@@ -48,6 +48,10 @@ export async function createProduct(
   const rangeText = String(formData.get("range") || "").trim();
   const seatsText = String(formData.get("seats") || "").trim();
   const powertrainText = String(formData.get("powertrain") || "").trim();
+  const dimensions = String(formData.get("dimensions") || "").trim().slice(0, 160);
+  const runningDistance = String(formData.get("runningDistance") || "").trim().slice(0, 160);
+  const turningRadius = String(formData.get("turningRadius") || "").trim().slice(0, 160);
+  const maxLoadCapacity = String(formData.get("maxLoadCapacity") || "").trim().slice(0, 160);
   const price = Number(formData.get("price"));
   const status = formData.get("status") === "published" ? "published" : "draft";
   const highlights = String(formData.get("highlights") || "")
@@ -81,6 +85,10 @@ export async function createProduct(
     range_text: rangeText,
     seats_text: seatsText,
     powertrain_text: powertrainText,
+    dimensions: dimensions || null,
+    running_distance: runningDistance || null,
+    turning_radius: turningRadius || null,
+    max_load_capacity: maxLoadCapacity || null,
     sort_order: (lastProduct?.sort_order ?? -1) + 1,
     highlights,
     visual_theme: "blue",
@@ -176,6 +184,10 @@ export async function updateProduct(
   const rangeText = String(formData.get("range") || "").trim();
   const seatsText = String(formData.get("seats") || "").trim();
   const powertrainText = String(formData.get("powertrain") || "").trim();
+  const dimensions = String(formData.get("dimensions") || "").trim().slice(0, 160);
+  const runningDistance = String(formData.get("runningDistance") || "").trim().slice(0, 160);
+  const turningRadius = String(formData.get("turningRadius") || "").trim().slice(0, 160);
+  const maxLoadCapacity = String(formData.get("maxLoadCapacity") || "").trim().slice(0, 160);
   if (!/^[0-9a-f-]{36}$/i.test(productId) || !/^[0-9a-f-]{36}$/i.test(familyId) || name.length < 2 || !Number.isFinite(price) || price < 0) {
     return { error: "Choose a product family, enter a product name, and use a valid non-negative price.", success: "" };
   }
@@ -198,6 +210,10 @@ export async function updateProduct(
     range_text: rangeText,
     seats_text: seatsText,
     powertrain_text: powertrainText,
+    dimensions: dimensions || null,
+    running_distance: runningDistance || null,
+    turning_radius: turningRadius || null,
+    max_load_capacity: maxLoadCapacity || null,
     highlights,
     status: formData.get("status") === "published" ? "published" : "draft",
     updated_at: new Date().toISOString(),
@@ -220,7 +236,7 @@ export async function duplicateProduct(formData: FormData) {
 
   const supabase = await createClient();
   const { data: source } = await supabase.from("products")
-    .select("family_id, name, model, description, base_price_cents, range_text, seats_text, powertrain_text, highlights, visual_theme, sales_guide")
+    .select("family_id, name, model, description, base_price_cents, range_text, seats_text, powertrain_text, dimensions, running_distance, turning_radius, max_load_capacity, highlights, visual_theme, sales_guide")
     .eq("id", productId).eq("organization_id", viewer.organizationId).maybeSingle();
   if (!source) throw new Error("The product could not be duplicated.");
 
@@ -240,6 +256,10 @@ export async function duplicateProduct(formData: FormData) {
     range_text: source.range_text,
     seats_text: source.seats_text,
     powertrain_text: source.powertrain_text,
+    dimensions: source.dimensions,
+    running_distance: source.running_distance,
+    turning_radius: source.turning_radius,
+    max_load_capacity: source.max_load_capacity,
     sort_order: (lastProduct?.sort_order ?? -1) + 1,
     highlights: source.highlights,
     visual_theme: source.visual_theme,

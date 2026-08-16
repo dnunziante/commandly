@@ -21,7 +21,9 @@ export async function getDashboardData(input: {view?:string;locationId?:string;e
  const isAdmin=["tenant_admin","platform_owner"].includes(viewer.role); const {data: assigned}=isAdmin ? await supabase.from("locations").select("id,name").eq("organization_id",viewer.organizationId).order("name") : await supabase.from("organization_member_locations").select("location_id,locations(id,name)").eq("organization_id",viewer.organizationId).eq("user_id",viewer.id);
  const locations=(isAdmin ? assigned || [] : (assigned || []).map((row:any)=>row.locations).filter(Boolean)) as {id:string;name:string}[];
  const allowedLocation=input.locationId && locations.some(l=>l.id===input.locationId) ? input.locationId : (membership?.location_id || locations[0]?.id);
- const team=isAdmin || viewer.role === "manager"; const scope:Scope=team ? requested : "employee";
+ const team=isAdmin || viewer.role === "manager";
+ const corporateLocation=locations.find((location)=>location.name.trim().toLowerCase()==="corporate");
+ const scope:Scope=team ? (input.locationId && input.locationId===corporateLocation?.id ? "company" : requested) : "employee";
  const {data: members}=await supabase.from("organization_memberships").select("user_id,role,location_id,profiles(full_name),locations(name)").eq("organization_id",viewer.organizationId).eq("status","active");
  const permitted=(members || []).filter((row:any)=>isAdmin || row.user_id===viewer.id || (viewer.role==="manager" && locations.some(l=>l.id===row.location_id)));
  const ids=permitted.map((row:any)=>row.user_id); const [{data:events},{data:progress},{data:responses}]=await Promise.all([supabase.from("performance_events").select("user_id,event_type,created_at").eq("organization_id",viewer.organizationId).in("user_id",ids),supabase.from("training_progress").select("user_id,status,updated_at").eq("organization_id",viewer.organizationId).in("user_id",ids),supabase.from("coach_responses").select("user_id,score,created_at").eq("organization_id",viewer.organizationId).in("user_id",ids)]);

@@ -11,7 +11,7 @@ function Selector({ label, name, value, options, hidden = {} }: { label: string;
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{view?:string;locationId?:string;employeeId?:string}> }) {
   const data = await getDashboardData(await searchParams);
   const cards = [["Questions answered", data.metrics.questions, Bot], ["Messages created", data.metrics.messages, Mail], ["Training completed", `${data.metrics.training}%`, GraduationCap], ["Team confidence", data.metrics.confidence, TrendingUp]] as const;
-  const employees = data.employees.map((employee) => ({ id: employee.id, name: employee.name }));
+  const employees = [{ id: "team-overview", name: "Team — all store statistics" }, ...data.employees.map((employee) => ({ id: employee.id, name: employee.name }))];
   return <AppShell title={data.team ? "Team Dashboard" : "Personal Dashboard"}>
     <PageHeader eyebrow={data.team ? "Team performance" : "Personal performance"} title={data.title} description={data.subtitle}/>
     {data.team && <div className="card dashboard-view-controls">

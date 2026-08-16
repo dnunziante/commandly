@@ -11,3 +11,5 @@ out
 *-Personal.*
 *.log
 .DS_Store
+.env.local.txt
+env.local.txt

@@ -2,8 +2,8 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Activity, AlertTriangle, ArrowRightLeft, BarChart3, BookOpen, BookOpenCheck, Bot, Boxes, BriefcaseBusiness, Calculator, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Crown, FileText, GitCompareArrows, GraduationCap, History, LayoutDashboard, Lightbulb, ListChecks, Mail, Menu, MessageSquareQuote, MessagesSquare, Scale, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Target, TrendingUp, X } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Activity, AlertTriangle, ArrowLeft, ArrowRightLeft, BarChart3, BookOpen, BookOpenCheck, Bot, Boxes, BriefcaseBusiness, Calculator, CalendarClock, CalendarDays, ChevronDown, ClipboardCheck, Crown, FileText, GitCompareArrows, GraduationCap, History, LayoutDashboard, Lightbulb, ListChecks, Mail, Menu, MessageSquareQuote, MessagesSquare, Scale, Search, Settings, ShieldAlert, ShieldCheck, Sparkles, Target, TrendingUp, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { logout } from "@/app/auth/actions";
 import type { Viewer } from "@/lib/auth/viewer";
@@ -47,6 +47,7 @@ const coachLinks = [
 
 export function AppShell({ children, title }: { children: React.ReactNode; title: string }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [viewer, setViewer] = useState<Pick<Viewer, "fullName" | "initials" | "organizationName" | "role" | "demo">>({
     fullName: "User",
@@ -111,7 +112,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
       <div className="sidebar-footer">{administratorVisible && <Link href="/admin/settings"><Settings size={18}/> Settings</Link>}<div className="profile"><span className="avatar">{viewer.initials}</span><span><strong>{viewer.fullName}</strong><small>{roleLabel}</small></span><form action={logout}><button className="logout-button" type="submit">{viewer.demo ? "Exit demo" : "Sign out"}</button></form></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="topbar-title"><button className="icon-btn menu-btn" aria-label="Open menu" onClick={() => setOpen(true)}><Menu size={21}/></button><strong>{title}</strong></div><div className="top-actions"><button className="search-btn"><Search size={17}/><span>Search anything</span><kbd>⌘ K</kbd></button><span className="status-dot" title={viewer.demo ? "Demo environment" : "Connected"}/><span className="avatar">{viewer.initials}</span></div></header>
+      <header className="topbar"><div className="topbar-title"><button className="icon-btn menu-btn" aria-label="Open menu" onClick={() => setOpen(true)}><Menu size={21}/></button><button className="btn btn-ghost" type="button" onClick={() => router.back()} aria-label="Go back to the previous page"><ArrowLeft size={16}/> Back</button><strong>{title}</strong></div><div className="top-actions"><button className="search-btn"><Search size={17}/><span>Search anything</span><kbd>⌘ K</kbd></button><span className="status-dot" title={viewer.demo ? "Demo environment" : "Connected"}/><span className="avatar">{viewer.initials}</span></div></header>
       <div className="content">{children}</div>
     </main>
   </div>;

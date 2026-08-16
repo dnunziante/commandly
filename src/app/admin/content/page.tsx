@@ -1,9 +1,21 @@
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 
+const sections = [
+  ["Sales scripts", "Add approved talk tracks and discovery prompts.", "/admin/content/sales_script"],
+  ["Objection responses", "Add approved answers to common buyer concerns.", "/admin/content/objection_response"],
+  ["Email templates", "Add reusable customer follow-up emails.", "/admin/content/email_template"],
+  ["Text templates", "Add reusable customer text messages.", "/admin/content/text_template"],
+  ["Role-play scenarios", "Create practice scenarios and scoring rubrics.", "/admin/coach"],
+  ["Training resources", "Build modules from approved training lessons.", "/admin/training"],
+  ["AI instructions", "Set the shared company instructions for future AI testing.", "/admin/settings"],
+  ["Knowledge documents", "Upload and organize the source documents your team approves.", "/knowledge-base"],
+  ["Locations and settings", "Maintain location details and shared workspace settings.", "/admin/settings"],
+];
+
 export default function AdminContentPage() {
-  return <AppShell title="Admin · Sales Content">
-    <PageHeader eyebrow="Content manager" title="Sales content" description="Manage the information representatives use throughout the sales process." />
-    <div className="grid grid-3">{["Sales scripts", "Objection responses", "Email templates", "Text templates", "Role-play scenarios", "Training resources", "AI instructions", "Knowledge documents", "Locations and users"].map(item=><div className="card" key={item}><h2>{item}</h2><p>Sample management section ready to connect to Supabase.</p><button className="btn btn-secondary">Manage</button></div>)}</div>
+  return <AppShell title="Admin · Sales Content"><PageHeader eyebrow="Content manager" title="Sales content" description="Load approved BGC material now so it is ready for controlled AI testing later." />
+    <div className="grid grid-3">{sections.map(([title, description, href]) => <div className="card" key={title}><h2>{title}</h2><p>{description}</p><Link className="btn btn-secondary" href={href}>Manage</Link></div>)}</div>
   </AppShell>;
 }

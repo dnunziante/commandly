@@ -30,7 +30,7 @@ export default async function Admin() {
     [GraduationCap, "Training modules", "Combine knowledge lessons into ordered learning paths.", "/admin/training"],
     [BookOpen, "Sales content", "Manage scripts, objections, templates, and training.", "/admin/content"],
     [Building2, "Locations", "Manage BGC storefront details and local information.", "/admin/settings"],
-    [Users, "Team members", "Invite users and assign future roles.", "/admin/settings"],
+    [Users, "Team members", "Invite users and assign BGC roles and locations.", "/admin/users"],
     [Settings, "Workspace settings", "Control branding and assistant behavior.", "/admin/settings"],
   ] as const;
 

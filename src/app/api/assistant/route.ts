@@ -29,6 +29,7 @@ export async function POST(request: Request) {
     const sourceContext = results.map((chunk, index) => `[${index + 1}] ${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`).join("\n\n");
     const { data: settings } = await supabase.from("organization_settings").select("assistant_instructions").eq("organization_id", viewer.organizationId).maybeSingle();
     const answer = await createGroundedAnswer(question, sourceContext, settings?.assistant_instructions);
+    await supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" });
     const sourceKeys = new Set<string>();
     const sources = results.filter((chunk) => {
       const key = `${chunk.document_name}|${chunk.section || ""}|${chunk.page_number || ""}`;

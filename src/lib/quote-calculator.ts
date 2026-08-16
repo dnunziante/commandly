@@ -7,7 +7,7 @@ export type QuoteInputs = {
   salesTax: number;
   extendedWarranties: number;
   tagTitleDmvFee: number;
-  shippingDestination: number;
+  destination: number;
   delivery: number;
 };
 
@@ -16,6 +16,6 @@ const cents = (value: number) => Math.round(value * 100) / 100;
 
 export function calculateQuote(input: QuoteInputs) {
   const subtotal = cents(Math.max(0, amount(input.vehiclePrice) + amount(input.accessories) + amount(input.docFees) - amount(input.tradeIn) - amount(input.discount)));
-  const totalDelivered = cents(subtotal + amount(input.salesTax) + amount(input.extendedWarranties) + amount(input.tagTitleDmvFee) + amount(input.shippingDestination) + amount(input.delivery));
+  const totalDelivered = cents(subtotal + amount(input.salesTax) + amount(input.extendedWarranties) + amount(input.tagTitleDmvFee) + amount(input.destination) + amount(input.delivery));
   return { subtotal, totalDelivered };
 }

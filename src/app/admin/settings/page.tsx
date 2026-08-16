@@ -1,17 +1,20 @@
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
-import { LocationQuoteFeeEditor } from "@/components/location-quote-fee-editor";
+import { OrganizationSettingsForm } from "@/components/organization-settings-form";
+import { AddLocationForm } from "@/components/add-location-form";
 import { PageHeader } from "@/components/page-header";
+import { getViewer } from "@/lib/auth/viewer";
 import { getOrganizationLocations } from "@/lib/locations";
+import { getOrganizationSettings } from "@/lib/organizations/settings";
 
 export default async function SettingsPage() {
-  const { locations, error } = await getOrganizationLocations();
+  const [locationResult, settings, viewer] = await Promise.all([getOrganizationLocations(), getOrganizationSettings(), getViewer()]);
+  const canSave = Boolean(viewer && !viewer.demo && ["tenant_admin", "platform_owner"].includes(viewer.role));
+
   return <AppShell title="Admin · Settings">
-    <PageHeader eyebrow="Customization" title="Company branding and settings" description="Change the information each tenant will see in its version of the application." />
-    <div className="card" style={{maxWidth: 760}}>
-      <div className="grid grid-2"><div><label className="label">Company name</label><input className="input" defaultValue="BGC"/></div><div><label className="label">Primary color</label><input className="input" defaultValue="#0B5CFF"/></div><div><label className="label">Contact email</label><input className="input" defaultValue="sales@example.com"/></div><div><label className="label">Default location</label><input className="input" defaultValue="Myrtle Beach"/></div></div>
-      <br/><label className="label">AI company instructions</label><textarea className="input" rows={7} defaultValue="Use approved product information, ask discovery questions, and never invent pricing or availability."/>
-      <br/><br/><button className="btn btn-primary" type="button">Save sample settings</button>
-    </div>
-    {error ? <div className="card error-card" style={{marginTop:18}}><h2>Locations unavailable</h2><p>{error}</p></div> : <div style={{marginTop:18}}><LocationQuoteFeeEditor locations={locations}/></div>}
+    <PageHeader eyebrow="Customization" title="Company branding and settings" description="Save organization settings for every authorized user and computer." />
+    <OrganizationSettingsForm settings={settings} locations={locationResult.locations} canSave={canSave} />
+    <AddLocationForm canAdd={canSave} />
+    {locationResult.error ? <div className="card error-card" style={{ marginTop: 18 }}><h2>Locations unavailable</h2><p>{locationResult.error}</p></div> : <section className="card" style={{ marginTop: 18 }}><span className="eyebrow">Quote Calculator</span><h2>Location fees and details</h2><p>Update a BGC location name, city/state, shipping, delivery, and tax defaults used by the Quote Calculator.</p><Link className="btn btn-secondary" href="/admin/settings/location-fees">Location fees and details</Link></section>}
   </AppShell>;
 }

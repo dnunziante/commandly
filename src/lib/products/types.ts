@@ -22,6 +22,10 @@ export type ProductDTO = {
   range: string;
   seats: string;
   powertrain: string;
+  dimensions: string;
+  runningDistance: string;
+  turningRadius: string;
+  maxLoadCapacity: string;
   sortOrder?: number;
   highlights: string[];
   color: string;

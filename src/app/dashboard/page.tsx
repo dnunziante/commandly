@@ -5,7 +5,7 @@ import { Bot, GraduationCap, Mail, TrendingUp } from "lucide-react";
 import { getDashboardData } from "@/lib/dashboard/data";
 
 function Selector({ label, name, value, options, hidden = {} }: { label: string; name: string; value?: string; options: { id: string; name: string }[]; hidden?: Record<string, string | undefined> }) {
-  return <form action="/dashboard" method="get" className="dashboard-selector">{Object.entries(hidden).map(([key, entry]) => entry ? <input key={key} type="hidden" name={key} value={entry}/> : null)}<label><span className="sr-only">{label}</span><select className="input" name={name} defaultValue={value} onChange={(event) => event.currentTarget.form?.requestSubmit()}>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label></form>;
+  return <form action="/dashboard" method="get" className="dashboard-selector">{Object.entries(hidden).map(([key, entry]) => entry ? <input key={key} type="hidden" name={key} value={entry}/> : null)}<label><span className="sr-only">{label}</span><select className="input" name={name} defaultValue={value}>{options.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label><button className="btn btn-secondary" type="submit">View</button></form>;
 }
 
 export default async function Dashboard({ searchParams }: { searchParams: Promise<{view?:string;locationId?:string;employeeId?:string}> }) {

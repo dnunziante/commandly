@@ -2,6 +2,7 @@ export const KNOWLEDGE_COLLECTIONS = [
   "General",
   "Sales process",
   "Product knowledge",
+  "Manuals and Guides",
   "Policies",
   "Operations",
 ] as const;

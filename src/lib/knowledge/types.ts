@@ -5,7 +5,7 @@ export type KnowledgeDocumentDTO = {
   collection: string;
   mimeType: string;
   sizeBytes: number;
-  status: "Uploaded" | "Processing" | "Ready" | "Error";
+  status: "Uploaded" | "Processing" | "Ready" | "Failed" | "Error";
   createdAt: string;
   trainingLessonId?: string;
 };

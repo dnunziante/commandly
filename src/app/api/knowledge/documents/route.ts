@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getViewer } from "@/lib/auth/viewer";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isKnowledgeCollection } from "@/lib/knowledge/collections";
+import { processKnowledgeDocument } from "@/lib/rag/process-document";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -29,13 +30,23 @@ export async function POST(request: Request) {
   const requestedCollection = String(formData.get("collection") || "General");
   const collection = isKnowledgeCollection(requestedCollection) ? requestedCollection : "General";
   const addToTraining = formData.get("addToTraining") === "on";
+  const locationId = String(formData.get("locationId") || "").trim() || null;
+  const productId = String(formData.get("productId") || "").trim() || null;
 
   if (!(file instanceof File) || file.size === 0) return NextResponse.json({ error: "Choose a document to upload." }, { status: 400 });
   if (!ALLOWED_TYPES.has(file.type)) return NextResponse.json({ error: "Upload a PDF, Word document, Markdown file, or plain-text file." }, { status: 400 });
   if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "The document must be 4 MB or smaller." }, { status: 400 });
   if (title.length < 2 || title.length > 140) return NextResponse.json({ error: "Enter a title between 2 and 140 characters." }, { status: 400 });
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  if (locationId) {
+    const { data } = await supabase.from("locations").select("id").eq("id", locationId).eq("organization_id", viewer.organizationId).maybeSingle();
+    if (!data) return NextResponse.json({ error: "Choose a location from this organization." }, { status: 400 });
+  }
+  if (productId) {
+    const { data } = await supabase.from("products").select("id").eq("id", productId).eq("organization_id", viewer.organizationId).maybeSingle();
+    if (!data) return NextResponse.json({ error: "Choose a product from this organization." }, { status: 400 });
+  }
   const storagePath = `${viewer.organizationId}/${crypto.randomUUID()}-${safeFilename(file.name)}`;
   const { error: uploadError } = await supabase.storage.from("knowledge-documents").upload(storagePath, file, { contentType: file.type, upsert: false });
   if (uploadError) return NextResponse.json({ error: "The file could not be uploaded." }, { status: 500 });
@@ -51,7 +62,9 @@ export async function POST(request: Request) {
       mime_type: file.type,
       size_bytes: file.size,
       collection,
-      status: "uploaded",
+      status: "processing",
+      location_id: locationId,
+      product_id: productId,
     })
     .select("id")
     .single();
@@ -73,11 +86,11 @@ export async function POST(request: Request) {
     });
 
     if (lessonError) {
-      await supabase.from("knowledge_documents").delete().eq("id", document.id).eq("organization_id", viewer.organizationId);
-      await supabase.storage.from("knowledge-documents").remove([storagePath]);
-      return NextResponse.json({ error: "The document uploaded, but its training lesson could not be created. No incomplete item was kept." }, { status: 500 });
+      await supabase.from("knowledge_documents").update({ status: "failed", processing_error: "The linked training lesson could not be created." }).eq("id", document.id).eq("organization_id", viewer.organizationId);
+      return NextResponse.json({ error: "The document was saved, but its training lesson could not be created." }, { status: 500 });
     }
   }
 
-  return NextResponse.json({ success: true, addedToTraining: addToTraining }, { status: 201 });
+  const processing = await processKnowledgeDocument({ documentId: document.id, organizationId: viewer.organizationId, locationId, productId, file });
+  return NextResponse.json({ success: true, addedToTraining: addToTraining, ...processing }, { status: processing.indexed ? 201 : 202 });
 }

@@ -11,7 +11,7 @@ function formatBytes(bytes: number) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function KnowledgeManager({ documents, canManage }: { documents: KnowledgeDocumentDTO[]; canManage: boolean }) {
+export function KnowledgeManager({ documents, canManage, locations = [], products = [] }: { documents: KnowledgeDocumentDTO[]; canManage: boolean; locations?: { id: string; name: string }[]; products?: { id: string; name: string }[] }) {
   const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
   const [query, setQuery] = useState("");
@@ -34,7 +34,7 @@ export function KnowledgeManager({ documents, canManage }: { documents: Knowledg
       return;
     }
     formRef.current?.reset();
-    setMessage({ type: "success", text: result.addedToTraining ? "Document uploaded and added to Training." : "Document uploaded securely." });
+    setMessage({ type: result.indexed === false ? "error" : "success", text: result.indexed === false ? `Document saved, but indexing failed: ${result.error}` : (result.addedToTraining ? "Document uploaded, indexed, and added to Training." : "Document uploaded and indexed securely.") });
     router.refresh();
   }
 
@@ -51,9 +51,11 @@ export function KnowledgeManager({ documents, canManage }: { documents: Knowledg
 
   return <>
     {canManage && <form className="card knowledge-upload" ref={formRef} onSubmit={uploadDocument}>
-      <div><h2>Upload a document</h2><p>Private files are available only to members of this organization. AI indexing will be added later.</p></div>
+      <div><h2>Upload a document</h2><p>Original files stay private. Supported documents are indexed for grounded Sales Assistant answers.</p></div>
       <div><label className="label" htmlFor="document-title">Title</label><input className="input" id="document-title" name="title" required maxLength={140} placeholder="2026 product guide"/></div>
       <div><label className="label" htmlFor="document-collection">Collection</label><select className="input" id="document-collection" name="collection">{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select></div>
+      <div><label className="label" htmlFor="document-product">Product <small>(optional)</small></label><select className="input" id="document-product" name="productId"><option value="">All products / general knowledge</option>{products.map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</select></div>
+      <div><label className="label" htmlFor="document-location">Location <small>(optional)</small></label><select className="input" id="document-location" name="locationId"><option value="">All locations</option>{locations.map((location) => <option key={location.id} value={location.id}>{location.name}</option>)}</select></div>
       <div><label className="label" htmlFor="document-file">File</label><input className="input file-input" id="document-file" name="file" type="file" required accept=".pdf,.docx,.md,.txt,application/pdf,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document"/><small className="field-help">PDF, DOCX, Markdown, or text · maximum 4 MB</small></div>
       <label className="knowledge-training-option"><input defaultChecked name="addToTraining" type="checkbox"/><span><strong>Add to Training</strong><small>Create a published 10-minute lesson linked to this document.</small></span></label>
       <button className="btn btn-primary" disabled={uploading} type="submit">{uploading ? <><LoaderCircle className="spin" size={16}/> Uploading…</> : <><Upload size={16}/> Upload securely</>}</button>

@@ -13,7 +13,7 @@ type KnowledgeRow = {
   collection: string;
   mime_type: string;
   size_bytes: number;
-  status: "uploaded" | "processing" | "ready" | "error";
+  status: "uploaded" | "processing" | "ready" | "failed" | "error";
   created_at: string;
 };
 
@@ -21,6 +21,7 @@ const statusLabels = {
   uploaded: "Uploaded",
   processing: "Processing",
   ready: "Ready",
+  failed: "Failed",
   error: "Error",
 } as const;
 

@@ -1,25 +1,46 @@
 import { AppShell } from "@/components/app-shell";
 import { InviteUserForm } from "@/components/invite-user-form";
-import { ChangeUserRoleForm } from "@/components/change-user-role-form";
 import { PageHeader } from "@/components/page-header";
+import { UsersManagementTable, type UserRow } from "@/components/users-management-table";
 import { getViewer } from "@/lib/auth/viewer";
-import { getOrganizationLocations } from "@/lib/locations";
 import { createClient } from "@/lib/supabase/server";
 
-export default async function UsersPage() {
-  const [viewer, locationResult] = await Promise.all([getViewer(), getOrganizationLocations()]);
-  const supabase = await createClient();
-  const organizationId = viewer?.organizationId || "";
-  const [{ data: members }, { data: pendingInvites }] = organizationId ? await Promise.all([
-    supabase.from("organization_memberships").select("id, role, status, profiles(full_name), locations(name)").eq("organization_id", organizationId).order("created_at"),
-    supabase.from("organization_invitations").select("id, email, role, expires_at, locations(name)").eq("organization_id", organizationId).eq("status", "pending").order("created_at", { ascending: false }),
-  ]) : [{ data: [] }, { data: [] }];
-  const canInvite = Boolean(viewer && !viewer.demo && ["tenant_admin", "platform_owner"].includes(viewer.role));
-  const roleLabel = (role: string) => role === "tenant_admin" ? "Admin" : role === "salesperson" ? "Employee" : "Manager";
+type Profile = { full_name: string | null; first_name: string | null; last_name: string | null; phone: string | null; email: string | null } | null;
+type Relation = { name: string } | null;
 
-  return <AppShell title="Admin · Users"><PageHeader eyebrow="Team access" title="Invite and assign BGC users" description="Roles and locations are saved in the shared BGC workspace, not on this computer." />
-    <InviteUserForm locations={locationResult.locations.map(({ id, name }) => ({ id, name }))} canInvite={canInvite} />
-    <section className="card" style={{ marginTop: 18 }}><h2>Current team</h2>{members?.length ? <div className="admin-settings-list">{members.map((member) => <div className="activity-row" key={member.id}><div style={{ flex: 1 }}><strong>{(member.profiles as unknown as { full_name: string } | null)?.full_name || "Team member"}</strong><p style={{ margin: 2, fontSize: 12 }}>{roleLabel(member.role)} · {(member.locations as unknown as { name: string } | null)?.name || "No location assigned"}</p></div>{canInvite ? <ChangeUserRoleForm membershipId={member.id} currentRole={member.role} /> : <span className="badge">{member.status}</span>}</div>)}</div> : <p>No active team members yet.</p>}</section>
-    <section className="card" style={{ marginTop: 18 }}><h2>Pending invitations</h2>{pendingInvites?.length ? <div className="admin-settings-list">{pendingInvites.map((invitation) => <div className="activity-row" key={invitation.id}><div style={{ flex: 1 }}><strong>{invitation.email}</strong><p style={{ margin: 2, fontSize: 12 }}>{roleLabel(invitation.role)} · {(invitation.locations as unknown as { name: string } | null)?.name || "No location assigned"}</p></div><span className="badge amber">Pending</span></div>)}</div> : <p>No pending invitations.</p>}</section>
+export default async function UsersPage() {
+  const viewer = await getViewer();
+  const supabase = await createClient();
+  const isPlatformOwner = viewer?.role === "platform_owner";
+  const organizationId = viewer?.organizationId || "";
+  const canManage = Boolean(viewer && !viewer.demo && ["tenant_admin", "platform_owner"].includes(viewer.role));
+  const membershipQuery = supabase.from("organization_memberships").select("id, organization_id, role, status, location_id, profiles(full_name, first_name, last_name, phone, email), locations(name), organizations(name)").order("created_at");
+  const invitationQuery = supabase.from("organization_invitations").select("id, organization_id, email, first_name, last_name, phone, role, status, location_id, locations(name), organizations(name)").eq("status", "pending").order("created_at", { ascending: false });
+  const locationQuery = supabase.from("locations").select("id, organization_id, name").eq("is_active", true).order("sort_order").order("name");
+  const tenantQuery = supabase.from("organizations").select("id, name").eq("status", "active").order("name");
+  const [{ data: memberships }, { data: invitations }, { data: locations }, { data: tenants }] = isPlatformOwner
+    ? await Promise.all([membershipQuery, invitationQuery, locationQuery, tenantQuery])
+    : organizationId ? await Promise.all([membershipQuery.eq("organization_id", organizationId), invitationQuery.eq("organization_id", organizationId), locationQuery.eq("organization_id", organizationId), tenantQuery.eq("id", organizationId)])
+      : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }];
+  const users: UserRow[] = [
+    ...(memberships || []).map((member) => {
+      const profile = member.profiles as unknown as Profile;
+      const location = member.locations as unknown as Relation;
+      const organization = member.organizations as unknown as Relation;
+      const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.full_name || "Team member";
+      return { id: member.id, kind: "member" as const, name, email: profile?.email || "—", phone: profile?.phone || "", organizationId: member.organization_id, organizationName: organization?.name || "Tenant", locationId: member.location_id, locationName: location?.name || "No location", role: member.role, status: member.status };
+    }),
+    ...(invitations || []).map((invitation) => {
+      const location = invitation.locations as unknown as Relation;
+      const organization = invitation.organizations as unknown as Relation;
+      return { id: invitation.id, kind: "invitation" as const, name: [invitation.first_name, invitation.last_name].filter(Boolean).join(" ") || "Invited user", email: invitation.email, phone: invitation.phone || "", organizationId: invitation.organization_id, organizationName: organization?.name || "Tenant", locationId: invitation.location_id, locationName: location?.name || "No location", role: invitation.role, status: invitation.status };
+    }),
+  ];
+  const locationOptions = (locations || []).map((location) => ({ id: location.id, name: location.name, organizationId: location.organization_id }));
+  const tenantOptions = (tenants || []).map((tenant) => ({ id: tenant.id, name: tenant.name }));
+
+  return <AppShell title="Admin · Users"><PageHeader eyebrow={isPlatformOwner ? "Platform administration" : "Team access"} title={isPlatformOwner ? "Manage Refyntra users" : "Manage BGC users"} description="User identity, access, and invitations are stored securely in the shared Refyntra workspace." />
+    <InviteUserForm locations={locationOptions} tenants={tenantOptions} canInvite={canManage} isPlatformOwner={isPlatformOwner} />
+    <UsersManagementTable users={users} locations={locationOptions} tenants={tenantOptions} canManage={canManage} isPlatformOwner={isPlatformOwner} />
   </AppShell>;
 }

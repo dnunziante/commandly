@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get("next");
   const destination = next?.startsWith("/") ? next : "/dashboard";
   const { url, publishableKey } = getSupabaseConfig();
-  let response = NextResponse.redirect(new URL(destination, requestUrl.origin));
+  const response = NextResponse.redirect(new URL(destination, requestUrl.origin));
 
   if (code) {
     const supabase = createServerClient(url, publishableKey, {

@@ -1,14 +1,11 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { SetInvitationPasswordForm } from "@/components/set-invitation-password-form";
 
 export default async function AcceptInvitationPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login?message=sign-in-to-accept-invite");
 
-  const { error } = await supabase.rpc("accept_organization_invitation");
-  if (!error) redirect("/dashboard?invited=1");
-
-  return <main className="auth-shell"><section className="auth-card"><p className="eyebrow">Invitation</p><h1>Invitation not available</h1><p>This invitation may have expired, already been accepted, or belong to a different email address.</p><Link className="btn btn-primary" href="/dashboard">Continue to Refyntra</Link></section></main>;
+  return <main className="auth-shell"><section className="auth-card"><p className="eyebrow">You&apos;re invited</p><h1>Create your password</h1><p>Choose a password to finish joining Refyntra. You&apos;ll use it the next time you sign in.</p><SetInvitationPasswordForm/></section></main>;
 }

@@ -47,6 +47,8 @@ export type CoachSessionSummary = {
   strength: string;
   improvement: string;
   completedAt: string;
+  participantName?: string;
+  locationName?: string;
 };
 
 export type CoachDashboardData = {
@@ -54,6 +56,7 @@ export type CoachDashboardData = {
   recentSessions: CoachSessionSummary[];
   practiceSessions: number;
   averageScore: number | null;
+  scopeLabel: string;
   source: "supabase" | "demo";
   error?: string;
 };

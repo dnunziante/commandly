@@ -4,7 +4,7 @@ import { AppShell } from "@/components/app-shell";
 import { PageHeader } from "@/components/page-header";
 import { getTrainingLesson } from "@/lib/training/data";
 
-export default async function TrainingLessonPage({ params }: PageProps<"/training/[id]">) {
+export default async function TrainingLessonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const lesson = await getTrainingLesson(id);
   if (!lesson) notFound();

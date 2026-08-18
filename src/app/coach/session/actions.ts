@@ -1,6 +1,7 @@
 "use server";
 
 import { getViewer } from "@/lib/auth/viewer";
+import { resolveCoachSessionLocation } from "@/lib/coach/access";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 
@@ -40,10 +41,8 @@ export async function completeCoachSession(scenarioId: string, selectedOptionInd
   if (!viewer?.organizationId) return { error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
-  if (locationId) {
-    const { data: location } = await supabase.from("locations").select("id").eq("id", locationId).eq("organization_id", viewer.organizationId).maybeSingle();
-    if (!location) return { error: "That location is not part of this organization." };
-  }
+  const location = await resolveCoachSessionLocation(viewer, locationId);
+  if (location.error || !location.locationId) return { error: location.error || "A practice location is required." };
   const { data: scenario, error: scenarioError } = await supabase
     .from("coach_scenarios")
     .select("id, rubric_weights, coach_scenario_rounds(round_number, customer_prompt, response_options, preferred_option_indices, skill_impacts)")
@@ -69,7 +68,7 @@ export async function completeCoachSession(scenarioId: string, selectedOptionInd
     organization_id: viewer.organizationId,
     scenario_id: scenario.id,
     user_id: viewer.id,
-    location_id: locationId,
+    location_id: location.locationId,
     status: "in_progress",
   }).select("id").single();
   if (sessionError || !session) return { error: "The practice session could not be saved." };

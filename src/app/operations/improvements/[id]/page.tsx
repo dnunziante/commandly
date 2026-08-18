@@ -9,7 +9,7 @@ import { processImprovements } from "@/lib/operations/improvements";
 
 export function generateStaticParams() { return processImprovements.map((item) => ({ id: item.id })); }
 
-export default async function ImprovementDetailPage({ params }: PageProps<"/operations/improvements/[id]">) {
+export default async function ImprovementDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const data = await getImprovement(id);
   const item = data.item;

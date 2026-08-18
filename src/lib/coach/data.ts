@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getViewer } from "@/lib/auth/viewer";
+import { getCoachSessionScope } from "@/lib/coach/access";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { demoCoachReview, demoCoachScenarios } from "./demo";
@@ -41,6 +42,8 @@ type SessionRow = {
   strength: string | null;
   improvement: string | null;
   completed_at: string;
+  profiles: { full_name: string | null } | null;
+  locations: { name: string } | null;
   coach_scenarios: {
     title: string;
     slug: string;
@@ -98,6 +101,8 @@ function toSession(row: SessionRow): CoachSessionSummary {
     strength: row.strength || "You kept the conversation focused on the customer.",
     improvement: row.improvement || "Continue practicing one clear discovery question at a time.",
     completedAt: row.completed_at,
+    participantName: row.profiles?.full_name || undefined,
+    locationName: row.locations?.name || undefined,
   };
 }
 
@@ -129,24 +134,30 @@ export async function getCoachScenario(identifier?: string) {
   return { scenario, source: result.source, error: result.error };
 }
 
-async function getCompletedSessions(limit = 20): Promise<{ sessions: CoachSessionSummary[]; error?: string }> {
-  if (isLocalDemoMode() || !isSupabaseConfigured()) return { sessions: [demoCoachReview] };
+async function getCompletedSessions(limit = 20): Promise<{ sessions: CoachSessionSummary[]; scopeLabel: string; error?: string }> {
+  if (isLocalDemoMode() || !isSupabaseConfigured()) return { sessions: [demoCoachReview], scopeLabel: "All company locations" };
 
   const viewer = await getViewer();
-  if (!viewer?.organizationId) return { sessions: [], error: "Your account is not assigned to an organization." };
+  if (!viewer?.organizationId) return { sessions: [], scopeLabel: "Your practice", error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const scope = await getCoachSessionScope(viewer);
+  if (scope.kind === "locations" && !scope.locationIds.length) return { sessions: [], scopeLabel: scope.scopeLabel };
+
+  let query = supabase
     .from("coach_sessions")
-    .select("id, score, closer_scores, summary, strength, improvement, completed_at, coach_scenarios(title, slug, category, difficulty)")
+    .select("id, score, closer_scores, summary, strength, improvement, completed_at, coach_scenarios(title, slug, category, difficulty), profiles(full_name), locations(name)")
     .eq("organization_id", viewer.organizationId)
-    .eq("user_id", viewer.id)
     .eq("status", "completed")
     .order("completed_at", { ascending: false })
     .limit(limit);
 
-  if (error) return { sessions: [], error: "Practice history could not be loaded." };
-  return { sessions: (data as unknown as SessionRow[]).map(toSession) };
+  if (scope.kind === "self") query = query.eq("user_id", viewer.id);
+  if (scope.kind === "locations") query = query.or(`user_id.eq.${viewer.id},location_id.in.(${scope.locationIds.join(",")})`);
+  const { data, error } = await query;
+
+  if (error) return { sessions: [], scopeLabel: scope.scopeLabel, error: "Practice history could not be loaded." };
+  return { sessions: (data as unknown as SessionRow[]).map(toSession), scopeLabel: scope.scopeLabel };
 }
 
 export async function getCoachDashboardData(): Promise<CoachDashboardData> {
@@ -157,6 +168,7 @@ export async function getCoachDashboardData(): Promise<CoachDashboardData> {
     recentSessions: sessionResult.sessions.slice(0, 4),
     practiceSessions: scenarioResult.source === "demo" ? 12 : sessionResult.sessions.length,
     averageScore: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length) : null,
+    scopeLabel: sessionResult.scopeLabel,
     source: scenarioResult.source,
     error: scenarioResult.error || sessionResult.error,
   };

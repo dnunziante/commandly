@@ -1,4 +1,5 @@
 import "server-only";
+import mammoth from "mammoth";
 import { PDFParse } from "pdf-parse";
 
 export type ExtractedPage = { pageNumber: number | null; text: string };
@@ -14,8 +15,12 @@ export async function extractDocumentPages(file: File): Promise<ExtractedPage[]>
       await parser.destroy();
     }
   }
+  if (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.name.toLowerCase().endsWith(".docx")) {
+    const result = await mammoth.extractRawText({ buffer: Buffer.from(await file.arrayBuffer()) });
+    return [{ pageNumber: null, text: result.value }];
+  }
   if (["text/plain", "text/markdown"].includes(file.type)) return [{ pageNumber: null, text: await file.text() }];
-  throw new Error("AI indexing currently supports PDF, Markdown, and text files. The original file was saved but was not indexed.");
+  throw new Error("AI indexing supports PDF, Word, Markdown, and text files. The original file was saved but was not indexed.");
 }
 
 function sectionFor(text: string) {

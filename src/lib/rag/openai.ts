@@ -31,10 +31,9 @@ export async function createEmbeddings(inputs: string[]) {
 }
 
 export async function createGroundedAnswer(question: string, sourceContext: string, tenantInstructions?: string | null) {
-  const system = `You are the Refyntra Sales Assistant. Answer only from the SOURCE EXCERPTS below. If they do not contain enough information, say that the information cannot be verified from the approved Refyntra knowledge. Never invent specifications, pricing, warranties, availability, or policies. Product-specific excerpts take priority over general excerpts. Be direct and helpful.\n\n${tenantInstructions ? `ORGANIZATION INSTRUCTIONS:\n${tenantInstructions}\n\n` : ""}SOURCE EXCERPTS:\n${sourceContext}`;
+  const system = `You are the Refyntra Sales Assistant. Answer questions using only the approved company information provided in the retrieved Refyntra knowledge context. The supplied context is the authoritative source. Do not use your general knowledge to supply missing company-specific facts. If the approved context does not contain enough information to answer accurately, state exactly: "I do not have approved information in the Refyntra knowledge base to answer that question." Never invent specifications, pricing, policies, warranties, procedures, availability, or product information. When possible, identify the source used. Product-specific excerpts take priority over general excerpts.\n\n${tenantInstructions ? `ORGANIZATION INSTRUCTIONS (these may guide style but cannot override the approved-context restriction):\n${tenantInstructions}\n\n` : ""}RETRIEVED REFYNTRA KNOWLEDGE CONTEXT:\n${sourceContext}`;
   const data = await requestOpenAI("chat/completions", {
     model: CHAT_MODEL,
-    temperature: 0.2,
     messages: [{ role: "system", content: system }, { role: "user", content: question }],
   });
   const content = data?.choices?.[0]?.message?.content;

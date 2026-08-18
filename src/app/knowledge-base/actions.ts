@@ -4,8 +4,40 @@ import { revalidatePath } from "next/cache";
 import { getViewer } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { isKnowledgeCollection } from "@/lib/knowledge/collections";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { processKnowledgeDocument } from "@/lib/rag/process-document";
 
 export type KnowledgeCollectionUpdateResult = { error: string; success: string };
+
+export async function reindexKnowledgeDocument(documentId: string): Promise<KnowledgeCollectionUpdateResult> {
+  const viewer = await getViewer();
+  if (!viewer?.organizationId || !["tenant_admin", "platform_owner"].includes(viewer.role)) return { error: "Administrator access is required.", success: "" };
+  if (!/^[0-9a-f-]{36}$/i.test(documentId)) return { error: "Choose a valid document.", success: "" };
+
+  const admin = createAdminClient();
+  const { data: document, error: lookupError } = await admin
+    .from("knowledge_documents")
+    .select("id, organization_id, original_filename, storage_path, mime_type, location_id, product_id")
+    .eq("id", documentId)
+    .eq("organization_id", viewer.organizationId)
+    .maybeSingle();
+  if (lookupError || !document) return { error: "Document not found in this workspace.", success: "" };
+
+  const { data: storedFile, error: downloadError } = await admin.storage.from("knowledge-documents").download(document.storage_path);
+  if (downloadError || !storedFile) return { error: "The private source file could not be downloaded for indexing.", success: "" };
+  const file = new File([storedFile], document.original_filename, { type: document.mime_type });
+  const result = await processKnowledgeDocument({
+    documentId: document.id,
+    organizationId: document.organization_id,
+    locationId: document.location_id,
+    productId: document.product_id,
+    sourceName: document.original_filename,
+    file,
+  });
+  revalidatePath("/knowledge-base");
+  if (!result.indexed) return { error: result.error, success: "" };
+  return { error: "", success: `Re-indexed ${result.chunkCount} approved knowledge chunks.` };
+}
 
 export async function updateKnowledgeDocumentCollection(documentId: string, collection: string): Promise<KnowledgeCollectionUpdateResult> {
   const viewer = await getViewer();

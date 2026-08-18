@@ -91,6 +91,6 @@ export async function POST(request: Request) {
     }
   }
 
-  const processing = await processKnowledgeDocument({ documentId: document.id, organizationId: viewer.organizationId, locationId, productId, file });
+  const processing = await processKnowledgeDocument({ documentId: document.id, organizationId: viewer.organizationId, locationId, productId, sourceName: file.name, file });
   return NextResponse.json({ success: true, addedToTraining: addToTraining, ...processing }, { status: processing.indexed ? 201 : 202 });
 }

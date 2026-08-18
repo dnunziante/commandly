@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createEmbeddings, createGroundedAnswer } from "@/lib/rag/openai";
 
 type SearchChunk = { document_name: string; content: string; section: string | null; page_number: number | null; similarity: number };
+const MINIMUM_SIMILARITY = 0.35;
 
 export async function POST(request: Request) {
   const viewer = await getViewer();
@@ -23,15 +24,15 @@ export async function POST(request: Request) {
       match_location_id: membership?.location_id || null, match_product_id: null, match_count: 8,
     });
     if (error) throw error;
-    const results = (chunks || []) as SearchChunk[];
-    if (!results.length) return NextResponse.json({ answer: "I could not find approved Refyntra knowledge that verifies an answer to that question yet.", sources: [] });
+    const results = ((chunks || []) as SearchChunk[]).filter((chunk) => chunk.similarity >= MINIMUM_SIMILARITY);
+    if (!results.length) return NextResponse.json({ answer: "I do not have approved information in the Refyntra knowledge base to answer that question.", sources: [] });
 
     const sourceContext = results.map((chunk, index) => `[${index + 1}] ${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`).join("\n\n");
     const { data: settings } = await supabase.from("organization_settings").select("assistant_instructions").eq("organization_id", viewer.organizationId).maybeSingle();
     const answer = await createGroundedAnswer(question, sourceContext, settings?.assistant_instructions);
     await supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" });
     const sourceKeys = new Set<string>();
-    const sources = results.filter((chunk) => {
+    const sources = answer.startsWith("I do not have approved information in the Refyntra knowledge base") ? [] : results.filter((chunk) => {
       const key = `${chunk.document_name}|${chunk.section || ""}|${chunk.page_number || ""}`;
       if (sourceKeys.has(key)) return false;
       sourceKeys.add(key);

@@ -15,7 +15,7 @@ const lessonSpecs=[
  ["10000000-0000-4000-8000-000000000010","Daily showroom readiness","Operations","Showroom Readiness Checklist.pdf",7],
 ] as const;
 export const demoTrainingLessons:TrainingLessonDTO[]=lessonSpecs.map(([id,title,collection,sourceFilename,estimatedMinutes])=>({id,knowledgeDocumentId:id.replace(/.$/,"f"),title,description:`${collection} demonstration lesson using sanitized sample content.`,estimatedMinutes,sourceFilename,mimeType:"application/pdf",collection,createdAt}));
-export const demoKnowledgeDocuments:KnowledgeDocumentDTO[]=demoTrainingLessons.map((lesson,index)=>({id:lesson.knowledgeDocumentId,title:lesson.title,filename:lesson.sourceFilename,collection:lesson.collection,mimeType:"application/pdf",sizeBytes:180000+index*24000,status:"Ready",createdAt,trainingLessonId:lesson.id}));
+export const demoKnowledgeDocuments:KnowledgeDocumentDTO[]=demoTrainingLessons.map((lesson,index)=>({id:lesson.knowledgeDocumentId,title:lesson.title,filename:lesson.sourceFilename,collection:lesson.collection,mimeType:"application/pdf",sizeBytes:180000+index*24000,status:"Ready",createdAt,chunkCount:8+index,trainingLessonId:lesson.id}));
 const modules=[
  ["20000000-0000-4000-8000-000000000001","Getting Started","General",[0]],
  ["20000000-0000-4000-8000-000000000002","Consultative Sales Process","Sales process",[1,2]],

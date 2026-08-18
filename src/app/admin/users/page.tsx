@@ -28,12 +28,13 @@ export default async function UsersPage() {
       const location = member.locations as unknown as Relation;
       const organization = member.organizations as unknown as Relation;
       const name = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || profile?.full_name || "Team member";
-      return { id: member.id, kind: "member" as const, name, email: profile?.email || "—", phone: profile?.phone || "", organizationId: member.organization_id, organizationName: organization?.name || "Tenant", locationId: member.location_id, locationName: location?.name || "No location", role: member.role, status: member.status };
+      const [fallbackFirstName = "", ...fallbackLastName] = name.split(/\s+/);
+      return { id: member.id, kind: "member" as const, firstName: profile?.first_name || fallbackFirstName, lastName: profile?.last_name || fallbackLastName.join(" "), name, email: profile?.email || "—", phone: profile?.phone || "", organizationId: member.organization_id, organizationName: organization?.name || "Tenant", locationId: member.location_id, locationName: location?.name || "No location", role: member.role, status: member.status };
     }),
     ...(invitations || []).map((invitation) => {
       const location = invitation.locations as unknown as Relation;
       const organization = invitation.organizations as unknown as Relation;
-      return { id: invitation.id, kind: "invitation" as const, name: [invitation.first_name, invitation.last_name].filter(Boolean).join(" ") || "Invited user", email: invitation.email, phone: invitation.phone || "", organizationId: invitation.organization_id, organizationName: organization?.name || "Tenant", locationId: invitation.location_id, locationName: location?.name || "No location", role: invitation.role, status: invitation.status };
+      return { id: invitation.id, kind: "invitation" as const, firstName: invitation.first_name || "", lastName: invitation.last_name || "", name: [invitation.first_name, invitation.last_name].filter(Boolean).join(" ") || "Invited user", email: invitation.email, phone: invitation.phone || "", organizationId: invitation.organization_id, organizationName: organization?.name || "Tenant", locationId: invitation.location_id, locationName: location?.name || "No location", role: invitation.role, status: invitation.status };
     }),
   ];
   const locationOptions = (locations || []).map((location) => ({ id: location.id, name: location.name, organizationId: location.organization_id }));

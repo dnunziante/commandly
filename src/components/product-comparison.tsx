@@ -7,11 +7,12 @@ import type { ProductDTO } from "@/lib/products/types";
 
 const fields = [{ label:"Starting price", value:(p:ProductDTO)=>`$${p.price.toLocaleString()}` },{label:"Passenger capacity",value:(p:ProductDTO)=>p.seats},{label:"Frame",value:(p:ProductDTO)=>p.range},{label:"Powertrain",value:(p:ProductDTO)=>p.powertrain},{label:"Description",value:(p:ProductDTO)=>p.description}];
 const modelOrder=["Pulse","Beyond","Nexus","SIVO"];
+const isComparisonAccessory=(product:ProductDTO)=>/grab bar|side steps?/i.test(product.name);
 const display=(value:string)=>value.trim()||"Not added";
 const different=(values:string[])=>new Set(values.map((value)=>display(value).toLowerCase())).size>1;
 
 export function ProductComparison({ products }: { products: ProductDTO[] }) {
-  const comparisonProducts=useMemo(()=>products.filter((product)=>modelOrder.some((model)=>product.name.toLowerCase().includes(model.toLowerCase()))).sort((a,b)=>{const group=modelOrder.findIndex((model)=>a.name.toLowerCase().includes(model.toLowerCase()))-modelOrder.findIndex((model)=>b.name.toLowerCase().includes(model.toLowerCase()));return group||a.price-b.price||a.name.localeCompare(b.name);}),[products]);
+  const comparisonProducts=useMemo(()=>products.filter((product)=>!isComparisonAccessory(product)&&modelOrder.some((model)=>product.name.toLowerCase().includes(model.toLowerCase()))).sort((a,b)=>{const group=modelOrder.findIndex((model)=>a.name.toLowerCase().includes(model.toLowerCase()))-modelOrder.findIndex((model)=>b.name.toLowerCase().includes(model.toLowerCase()));return group||a.price-b.price||a.name.localeCompare(b.name);}),[products]);
   const initialIds=comparisonProducts.slice(0,2).map((product)=>product.id);
   const [selectedIds,setSelectedIds]=useState<string[]>(initialIds);
   const selectedProducts=useMemo(()=>selectedIds.map((id)=>comparisonProducts.find((product)=>product.id===id)).filter((product):product is ProductDTO=>Boolean(product)),[comparisonProducts,selectedIds]);

@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/server";
 export type InviteUserState = { error: string; success: string };
 export type ChangeRoleState = { error: string; success: string };
 export type ChangeLocationState = { error: string; success: string };
+export type UpdateCredentialsState = { error: string; success: string };
 
 const validRoles = new Set(["manager", "salesperson"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -131,4 +132,58 @@ export async function changeUserLocation(_previousState: ChangeLocationState, fo
   if (error) return { error: "The location could not be updated.", success: "" };
   revalidatePath("/admin/users");
   return { error: "", success: "User location updated." };
+}
+
+export async function updateUserCredentials(_previousState: UpdateCredentialsState, formData: FormData): Promise<UpdateCredentialsState> {
+  const viewer = await getViewer();
+  if (viewer?.demo || !viewer || !["tenant_admin", "platform_owner"].includes(viewer.role)) {
+    return { error: "Only an Admin can edit user credentials.", success: "" };
+  }
+
+  const membershipId = String(formData.get("membershipId") || "");
+  const firstName = String(formData.get("firstName") || "").trim();
+  const lastName = String(formData.get("lastName") || "").trim();
+  const phone = String(formData.get("phone") || "").trim();
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  const password = String(formData.get("password") || "");
+
+  if (!uuidPattern.test(membershipId) || !firstName || !/^\S+@\S+\.\S+$/.test(email)) {
+    return { error: "Enter a valid name and email address.", success: "" };
+  }
+  if (password && password.length < 8) {
+    return { error: "A new password must contain at least 8 characters.", success: "" };
+  }
+
+  try {
+    const admin = createAdminClient();
+    const { data: membership, error: membershipError } = await admin
+      .from("organization_memberships")
+      .select("user_id, organization_id")
+      .eq("id", membershipId)
+      .maybeSingle();
+    if (membershipError || !membership) return { error: "That team member was not found.", success: "" };
+    if (viewer.role !== "platform_owner" && membership.organization_id !== viewer.organizationId) {
+      return { error: "That user is outside your workspace.", success: "" };
+    }
+
+    const attributes: { email: string; password?: string; email_confirm?: boolean } = { email, email_confirm: true };
+    if (password) attributes.password = password;
+    const { error: authError } = await admin.auth.admin.updateUserById(membership.user_id, attributes);
+    if (authError) return { error: authError.message || "The login credentials could not be updated.", success: "" };
+
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+    const { error: profileError } = await admin.from("profiles").update({
+      first_name: firstName,
+      last_name: lastName,
+      full_name: fullName,
+      phone: phone || null,
+      email,
+    }).eq("id", membership.user_id);
+    if (profileError) return { error: "The login was updated, but the profile details could not be saved. Refresh and try again.", success: "" };
+
+    revalidatePath("/admin/users");
+    return { error: "", success: password ? "User details and password updated." : "User details updated." };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "The user credentials could not be updated.", success: "" };
+  }
 }

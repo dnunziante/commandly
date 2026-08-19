@@ -8,9 +8,11 @@ function publicError(error: unknown) { return error instanceof Error ? error.mes
 
 export async function processKnowledgeDocument(input: { documentId: string; organizationId: string; locationId: string | null; productId: string | null; sourceName: string; file: File }) {
   const admin = createAdminClient();
+  let chunkCount = 0;
   await admin.from("knowledge_documents").update({ status: "processing", processing_error: null }).eq("id", input.documentId).eq("organization_id", input.organizationId);
   try {
     const chunks = makeKnowledgeChunks(await extractDocumentPages(input.file));
+    chunkCount = chunks.length;
     const embeddings: number[][] = [];
     for (let index = 0; index < chunks.length; index += 32) embeddings.push(...await createEmbeddings(chunks.slice(index, index + 32).map((chunk) => chunk.content)));
     const { error: deleteError } = await admin.from("knowledge_document_chunks").delete().eq("document_id", input.documentId).eq("organization_id", input.organizationId);
@@ -30,5 +32,5 @@ export async function processKnowledgeDocument(input: { documentId: string; orga
     await admin.from("knowledge_documents").update({ status: "failed", processing_error: message }).eq("id", input.documentId).eq("organization_id", input.organizationId);
     return { indexed: false, error: message };
   }
-  return { indexed: true as const };
+  return { indexed: true as const, chunkCount };
 }

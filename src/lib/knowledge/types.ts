@@ -7,6 +7,7 @@ export type KnowledgeDocumentDTO = {
   sizeBytes: number;
   status: "Uploaded" | "Processing" | "Ready" | "Failed" | "Error";
   createdAt: string;
+  chunkCount: number;
   trainingLessonId?: string;
 };
 

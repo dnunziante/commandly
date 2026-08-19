@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isKnowledgeCollection } from "@/lib/knowledge/collections";
 import { processKnowledgeDocument } from "@/lib/rag/process-document";
+import { generateTrainingLessonForDocument, parseTrainingGenerationOptions } from "@/lib/training/generate";
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_TYPES = new Set([
@@ -30,6 +31,11 @@ export async function POST(request: Request) {
   const requestedCollection = String(formData.get("collection") || "General");
   const collection = isKnowledgeCollection(requestedCollection) ? requestedCollection : "General";
   const addToTraining = formData.get("addToTraining") === "on";
+  const trainingOptions = parseTrainingGenerationOptions({
+    estimatedMinutes: formData.get("lessonLength"),
+    trainingType: formData.get("trainingType"),
+    includeKnowledgeCheck: formData.get("includeKnowledgeCheck"),
+  });
   const locationId = String(formData.get("locationId") || "").trim() || null;
   const productId = String(formData.get("productId") || "").trim() || null;
 
@@ -74,23 +80,47 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "The document record could not be saved." }, { status: 500 });
   }
 
-  if (addToTraining) {
-    const { error: lessonError } = await supabase.from("training_lessons").insert({
-      organization_id: viewer.organizationId,
-      knowledge_document_id: document.id,
-      created_by: viewer.id,
-      title,
-      description: `${collection} training based on ${file.name}`,
-      estimated_minutes: 10,
-      is_published: true,
-    });
-
-    if (lessonError) {
-      await supabase.from("knowledge_documents").update({ status: "failed", processing_error: "The linked training lesson could not be created." }).eq("id", document.id).eq("organization_id", viewer.organizationId);
-      return NextResponse.json({ error: "The document was saved, but its training lesson could not be created." }, { status: 500 });
-    }
+  const processing = await processKnowledgeDocument({ documentId: document.id, organizationId: viewer.organizationId, locationId, productId, sourceName: file.name, file });
+  if (!processing.indexed) {
+    return NextResponse.json({
+      success: true,
+      documentId: document.id,
+      addedToTraining: false,
+      failedStep: "indexing",
+      ...processing,
+    }, { status: 202 });
   }
 
-  const processing = await processKnowledgeDocument({ documentId: document.id, organizationId: viewer.organizationId, locationId, productId, sourceName: file.name, file });
-  return NextResponse.json({ success: true, addedToTraining: addToTraining, ...processing }, { status: processing.indexed ? 201 : 202 });
+  if (!addToTraining) {
+    return NextResponse.json({ success: true, documentId: document.id, addedToTraining: false, ...processing }, { status: 201 });
+  }
+
+  const generation = await generateTrainingLessonForDocument({
+    documentId: document.id,
+    organizationId: viewer.organizationId,
+    createdBy: viewer.id,
+    options: trainingOptions,
+  });
+  if (!generation.ok) {
+    return NextResponse.json({
+      success: true,
+      documentId: document.id,
+      addedToTraining: false,
+      indexed: true,
+      chunkCount: processing.chunkCount,
+      failedStep: generation.step,
+      lessonId: generation.lessonId,
+      error: generation.error,
+    }, { status: 202 });
+  }
+
+  return NextResponse.json({
+    success: true,
+    documentId: document.id,
+    addedToTraining: true,
+    indexed: true,
+    chunkCount: processing.chunkCount,
+    lessonId: generation.lessonId,
+    reviewUrl: `/training/${generation.lessonId}/review`,
+  }, { status: 201 });
 }

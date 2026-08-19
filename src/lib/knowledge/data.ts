@@ -39,7 +39,7 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
       .order("created_at", { ascending: false }),
     supabase
       .from("training_lessons")
-      .select("id, knowledge_document_id")
+      .select("id, knowledge_document_id, generation_status, is_published, source_review_required")
       .eq("organization_id", viewer.organizationId),
     supabase
       .from("knowledge_document_chunks")
@@ -49,9 +49,7 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
 
   if (error || lessonError || chunkError) return { documents: [], error: "Knowledge documents could not be loaded." };
 
-  const lessonByDocument = new Map(
-    (lessonRows ?? []).map((lesson) => [lesson.knowledge_document_id as string, lesson.id as string]),
-  );
+  const lessonByDocument = new Map((lessonRows ?? []).map((lesson) => [lesson.knowledge_document_id as string, lesson]));
   const chunksByDocument = new Map<string, number>();
   for (const chunk of chunkRows ?? []) chunksByDocument.set(chunk.document_id as string, (chunksByDocument.get(chunk.document_id as string) ?? 0) + 1);
 
@@ -66,7 +64,10 @@ export async function getKnowledgeDocuments(): Promise<KnowledgeResult> {
       status: statusLabels[row.status],
       createdAt: row.created_at,
       chunkCount: chunksByDocument.get(row.id) ?? 0,
-      trainingLessonId: lessonByDocument.get(row.id),
+      trainingLessonId: lessonByDocument.get(row.id)?.id as string | undefined,
+      trainingLessonStatus: lessonByDocument.get(row.id)?.generation_status as KnowledgeDocumentDTO["trainingLessonStatus"],
+      trainingLessonPublished: lessonByDocument.get(row.id)?.is_published as boolean | undefined,
+      trainingSourceReviewRequired: lessonByDocument.get(row.id)?.source_review_required as boolean | undefined,
     })),
   };
 }

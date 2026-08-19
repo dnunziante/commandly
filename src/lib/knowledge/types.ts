@@ -9,6 +9,9 @@ export type KnowledgeDocumentDTO = {
   createdAt: string;
   chunkCount: number;
   trainingLessonId?: string;
+  trainingLessonStatus?: "pending" | "generating" | "ready" | "failed";
+  trainingLessonPublished?: boolean;
+  trainingSourceReviewRequired?: boolean;
 };
 
 export type KnowledgeResult = {

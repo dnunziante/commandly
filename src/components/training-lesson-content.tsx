@@ -1,4 +1,5 @@
 import { BookOpenCheck, CheckCircle2, Clock, ExternalLink, FileText, Lightbulb, ShieldCheck } from "lucide-react";
+import { TrainingKnowledgeCheck } from "@/components/training-knowledge-check";
 import type { TrainingLessonDTO } from "@/lib/training/types";
 
 export function TrainingLessonContent({ lesson, reviewer = false }: { lesson: TrainingLessonDTO; reviewer?: boolean }) {
@@ -12,7 +13,7 @@ export function TrainingLessonContent({ lesson, reviewer = false }: { lesson: Tr
         <section className="training-content-section"><h2>Key Takeaways</h2><ul>{lesson.content.keyTakeaways.map((takeaway, index) => <li key={index}><CheckCircle2 size={15}/>{takeaway}</li>)}</ul></section>
         {lesson.content.practicalApplication && <section className="training-content-section"><h2>Practical Application</h2><p>{lesson.content.practicalApplication}</p></section>}
         {lesson.content.scenario && <section className="training-content-section training-scenario"><h2>{lesson.content.scenario.title}</h2><p>{lesson.content.scenario.situation}</p><h3>Recommended approach</h3><p>{lesson.content.scenario.recommendedApproach}</p></section>}
-        {lesson.content.knowledgeCheck.length > 0 && <section className="training-content-section"><h2>Knowledge Check</h2><div className="training-quiz">{lesson.content.knowledgeCheck.map((question, index) => <details key={question.id}><summary>{index + 1}. {question.question}</summary><ul>{question.options.map((option, optionIndex) => <li key={optionIndex}>{option}</li>)}</ul><p><strong>Correct answer:</strong> {question.correctAnswer}</p><p>{question.explanation}</p>{reviewer && <small><strong>Source evidence:</strong> {question.sourceEvidence}</small>}</details>)}</div></section>}
+        {lesson.content.knowledgeCheck.length > 0 && <section className="training-content-section"><h2>Knowledge Check</h2><TrainingKnowledgeCheck questions={lesson.content.knowledgeCheck} reviewer={reviewer}/></section>}
       </> : <section className="training-content-section"><span className="metric-icon"><BookOpenCheck size={20}/></span><h2>Approved learning material</h2><p>This existing lesson uses its linked source document as the training content.</p></section>}
       <a className="btn btn-secondary" href={`/api/knowledge/documents/${lesson.knowledgeDocumentId}/open`} target="_blank" rel="noreferrer"><ExternalLink size={16}/> Open source document</a>
     </article>

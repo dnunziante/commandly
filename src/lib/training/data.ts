@@ -56,18 +56,19 @@ function mapLesson(row: TrainingRow): TrainingLessonDTO {
   };
 }
 
-export async function getTrainingLessons(): Promise<TrainingResult> {
+export async function getTrainingLessons(options: { includeDrafts?: boolean } = {}): Promise<TrainingResult> {
   const viewer = await getViewer();
   if (viewer?.demo || isLocalDemoMode()) return { lessons: demoTrainingLessons };
   if (!viewer?.organizationId) return { lessons: [], error: "Your account is not assigned to an organization." };
 
   const supabase = await createClient();
-  const { data, error } = await supabase
+  let lessonsQuery = supabase
     .from("training_lessons")
     .select(lessonSelect)
     .eq("organization_id", viewer.organizationId)
-    .eq("is_published", true)
     .order("created_at", { ascending: false });
+  if (!options.includeDrafts) lessonsQuery = lessonsQuery.eq("is_published", true);
+  const { data, error } = await lessonsQuery;
 
   if (error) return { lessons: [], error: "Training lessons could not be loaded." };
 
@@ -139,7 +140,7 @@ export async function getTrainingModules(options: { includeDrafts?: boolean } = 
 
   const [{ data: modules, error: modulesError }, lessonResult, { data: assignments, error: assignmentsError }] = await Promise.all([
     moduleQuery,
-    getTrainingLessons(),
+    getTrainingLessons({ includeDrafts: options.includeDrafts }),
     supabase
       .from("training_module_lessons")
       .select("module_id, lesson_id, sort_order")

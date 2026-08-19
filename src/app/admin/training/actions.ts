@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { isTrainingCategory, toStoredTrainingCategory } from "@/lib/training/categories";
 
 export type TrainingModuleActionState = { error: string; success: string };
+export type TrainingDraftActionState = { error: string; success: string };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -97,4 +98,44 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
   revalidatePath("/training");
   revalidatePath("/admin/training");
   return { error: "", success: `${title} was saved${isPublished ? " and published" : " as a draft"}.` };
+}
+
+export async function deleteTrainingDraft(_previousState: TrainingDraftActionState, formData: FormData): Promise<TrainingDraftActionState> {
+  if (isLocalDemoMode()) return { error: "Training draft deletion is disabled in local demo mode.", success: "" };
+  const viewer = await requireTenantAdmin();
+  const lessonId = String(formData.get("lessonId") || "");
+  if (!uuidPattern.test(lessonId)) return { error: "The selected training draft is invalid.", success: "" };
+
+  const supabase = await createClient();
+  const { data: draft, error: draftError } = await supabase
+    .from("training_lessons")
+    .select("id, title, is_published")
+    .eq("id", lessonId)
+    .eq("organization_id", viewer.organizationId)
+    .maybeSingle();
+
+  if (draftError || !draft) return { error: "This training draft is unavailable.", success: "" };
+  if (draft.is_published) return { error: "Published lessons cannot be deleted here.", success: "" };
+
+  const { error: assignmentError } = await supabase
+    .from("training_module_lessons")
+    .delete()
+    .eq("organization_id", viewer.organizationId)
+    .eq("lesson_id", lessonId);
+  if (assignmentError) return { error: "The draft could not be removed from its modules.", success: "" };
+
+  const { data: deleted, error: deleteError } = await supabase
+    .from("training_lessons")
+    .delete()
+    .eq("id", lessonId)
+    .eq("organization_id", viewer.organizationId)
+    .eq("is_published", false)
+    .select("id")
+    .maybeSingle();
+  if (deleteError || !deleted) return { error: "The training draft could not be deleted.", success: "" };
+
+  revalidatePath("/admin/training");
+  revalidatePath("/training");
+  revalidatePath("/training/review");
+  return { error: "", success: `${draft.title} was deleted. The linked knowledge upload was kept.` };
 }

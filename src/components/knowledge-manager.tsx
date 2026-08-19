@@ -20,9 +20,64 @@ export function KnowledgeManager({ documents, canManage, locations = [], product
   const [uploading, setUploading] = useState(false);
   const [createTraining, setCreateTraining] = useState(true);
   const [savingDocumentId, setSavingDocumentId] = useState<string | null>(null);
+  const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(new Set());
+  const [isBuildingModule, setIsBuildingModule] = useState(false);
   const [isCollectionPending, startCollectionTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const shown = useMemo(() => documents.filter((document) => `${document.title} ${document.filename} ${document.collection}`.toLowerCase().includes(query.toLowerCase()) && (collectionFilter === "All Collections" || document.collection === collectionFilter)), [documents, query, collectionFilter]);
+  const selectedDocuments = documents.filter((document) => selectedDocumentIds.has(document.id) && document.status === "Ready");
+  const selectableShownDocuments = shown.filter((document) => document.status === "Ready");
+  const allShownSelected = selectableShownDocuments.length > 0 && selectableShownDocuments.every((document) => selectedDocumentIds.has(document.id));
+
+  function toggleDocumentSelection(documentId: string, checked: boolean) {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(documentId);
+      else next.delete(documentId);
+      return next;
+    });
+  }
+
+  function toggleShownSelections(checked: boolean) {
+    setSelectedDocumentIds((current) => {
+      const next = new Set(current);
+      selectableShownDocuments.forEach((document) => checked ? next.add(document.id) : next.delete(document.id));
+      return next;
+    });
+  }
+
+  async function buildModuleFromSelections() {
+    if (!selectedDocuments.length) return;
+    const documentsNeedingTraining = selectedDocuments.filter((document) => !document.trainingLessonId || document.trainingLessonStatus !== "ready");
+    if (documentsNeedingTraining.length && !window.confirm(`${documentsNeedingTraining.length} selected document${documentsNeedingTraining.length === 1 ? " needs" : "s need"} a draft training lesson. Continue to generate those lessons from their approved knowledge?`)) return;
+
+    setIsBuildingModule(true);
+    setMessage(null);
+    const lessonIds: string[] = [];
+    const failedTitles: string[] = [];
+    for (const document of selectedDocuments) {
+      if (document.trainingLessonId && document.trainingLessonStatus === "ready") {
+        lessonIds.push(document.trainingLessonId);
+        continue;
+      }
+
+      const response = await fetch(`/api/knowledge/documents/${document.id}/training`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ estimatedMinutes: 10, trainingType: "auto_detect", includeKnowledgeCheck: true }),
+      });
+      const result = await response.json().catch(() => ({ error: "Training generation could not be completed." }));
+      if (response.ok && result.lessonId) lessonIds.push(String(result.lessonId));
+      else failedTitles.push(document.title);
+    }
+    setIsBuildingModule(false);
+    if (failedTitles.length) {
+      setMessage({ type: "error", text: `Training could not be prepared for ${failedTitles.join(", ")}. No module was opened; correct those documents and try again.` });
+      router.refresh();
+      return;
+    }
+    router.push(`/admin/training?lessonIds=${encodeURIComponent([...new Set(lessonIds)].join(","))}`);
+  }
 
   async function uploadDocument(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,7 +157,11 @@ export function KnowledgeManager({ documents, canManage, locations = [], product
     </form>}
     <div className="card" style={{marginTop:18}}>
       <div className="metric-row knowledge-table-head"><div><h2>Documents</h2><p style={{fontSize:12,margin:0}}>Stored privately in the active workspace.</p></div><div className="knowledge-list-controls"><label className="knowledge-filter"><span>Collection</span><select className="input" value={collectionFilter} onChange={(event) => setCollectionFilter(event.target.value)}><option>All Collections</option>{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select></label><div style={{position:"relative",width:300,maxWidth:"100%"}}><Search size={15} style={{position:"absolute",left:11,top:12,color:"#68738a"}}/><input className="input" style={{paddingLeft:34}} value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="Search knowledge"/></div></div></div>
-      {shown.length ? <div className="table-wrap"><table className="table"><thead><tr><th>Name</th><th>Collection</th><th>Size</th><th>Uploaded</th><th>Status</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{shown.map((document)=><tr key={document.id}><td><span className="document-name"><FileText size={16}/><span><strong>{document.title}</strong><small>{document.filename}</small></span></span></td><td>{canManage ? <select aria-label={`Collection for ${document.title}`} className="input knowledge-collection-select" value={document.collection} disabled={isCollectionPending && savingDocumentId === document.id} onChange={(event) => changeCollection(document.id, event.target.value)}>{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select> : document.collection}</td><td>{formatBytes(document.sizeBytes)}</td><td>{new Intl.DateTimeFormat("en-US", { month:"short", day:"numeric", year:"numeric" }).format(new Date(document.createdAt))}</td><td><span className={`badge ${["Error", "Failed"].includes(document.status) ? "amber" : document.status === "Ready" ? "blue" : ""}`}>{document.status === "Ready" ? `${document.chunkCount} chunks` : document.status}</span>{document.trainingLessonId ? <small className={document.trainingSourceReviewRequired ? "training-review-warning" : undefined}>{document.trainingSourceReviewRequired ? "Source Updated — Training Review Recommended" : document.trainingLessonPublished ? "Training published" : document.trainingLessonStatus === "failed" ? "Training generation failed" : "Training draft"}</small> : null}</td>{canManage && <td><div className="knowledge-row-actions"><button className="btn btn-secondary" type="button" disabled={isCollectionPending && savingDocumentId === document.id} onClick={() => reindex(document.id)}><RefreshCw className={isCollectionPending && savingDocumentId === document.id ? "spin" : ""} size={14}/> {document.chunkCount ? "Re-index" : "Index"}</button>{document.trainingLessonId && document.trainingLessonStatus !== "failed" ? <Link className="btn btn-secondary" href={`/training/${document.trainingLessonId}/review`} aria-label={`${document.trainingLessonPublished ? "Edit and republish" : "Review and publish"} training for ${document.title}`}><Pencil size={14}/> {document.trainingLessonPublished ? "Edit & republish" : "Review & publish"}</Link> : <button className="btn btn-secondary" type="button" disabled={savingDocumentId === document.id} onClick={() => generateTraining(document.id)}><BookOpenCheck size={14}/> {document.trainingLessonStatus === "failed" ? "Retry training" : "Create training"}</button>}<form action={deleteKnowledgeDocument}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-ghost danger-button" type="submit" aria-label={`Delete ${document.title}`}><Trash2 size={14}/> Delete</button></form></div></td>}</tr>)}</tbody></table></div> : <div className="output empty"><div><FileText size={30}/><h2>{documents.length ? "No documents match" : "No documents yet"}</h2><p>{documents.length ? "Try a different search." : canManage ? "Upload the first approved document for this workspace." : "A tenant administrator has not uploaded any documents."}</p>{query && <button className="btn btn-secondary" onClick={()=>setQuery("")}>Clear search</button>}</div></div>}
+      {canManage ? <div className="knowledge-module-toolbar"><span>{selectedDocuments.length ? `${selectedDocuments.length} knowledge upload${selectedDocuments.length === 1 ? "" : "s"} selected` : "Select indexed knowledge uploads to build a module."}</span>{selectedDocuments.length ? <button className="btn btn-primary" type="button" disabled={isBuildingModule} onClick={buildModuleFromSelections}>{isBuildingModule ? <><LoaderCircle className="spin" size={16}/> Preparing lessons...</> : <><BookOpenCheck size={16}/> Build module with selected</>}</button> : null}</div> : null}
+      {shown.length ? <div className="table-wrap"><table className="table"><thead><tr>{canManage && <th className="knowledge-select-cell"><input aria-label="Select all indexed documents shown" type="checkbox" checked={allShownSelected} disabled={selectableShownDocuments.length === 0} onChange={(event) => toggleShownSelections(event.target.checked)}/></th>}<th>Name</th><th>Collection</th><th>Size</th><th>Uploaded</th><th>Status</th>{canManage && <th>Actions</th>}</tr></thead><tbody>{shown.map((document) => {
+        const canAddToModule = document.status === "Ready";
+        return <tr key={document.id}>{canManage && <td className="knowledge-select-cell"><input aria-label={`Select ${document.title} for a training module`} type="checkbox" checked={selectedDocumentIds.has(document.id)} disabled={!canAddToModule} title={canAddToModule ? "Select for a training module" : "Finish indexing this document before adding it to a module."} onChange={(event) => toggleDocumentSelection(document.id, event.target.checked)}/></td>}<td><span className="document-name"><FileText size={16}/><span><strong>{document.title}</strong><small>{document.filename}</small></span></span></td><td>{canManage ? <select aria-label={`Collection for ${document.title}`} className="input knowledge-collection-select" value={document.collection} disabled={isCollectionPending && savingDocumentId === document.id} onChange={(event) => changeCollection(document.id, event.target.value)}>{KNOWLEDGE_COLLECTIONS.map((collection) => <option key={collection}>{collection}</option>)}</select> : document.collection}</td><td>{formatBytes(document.sizeBytes)}</td><td>{new Intl.DateTimeFormat("en-US", { month:"short", day:"numeric", year:"numeric" }).format(new Date(document.createdAt))}</td><td><span className={`badge ${["Error", "Failed"].includes(document.status) ? "amber" : document.status === "Ready" ? "blue" : ""}`}>{document.status === "Ready" ? `${document.chunkCount} chunks` : document.status}</span>{document.trainingLessonId ? <small className={document.trainingSourceReviewRequired ? "training-review-warning" : undefined}>{document.trainingSourceReviewRequired ? "Source Updated — Training Review Recommended" : document.trainingLessonPublished ? "Training published" : document.trainingLessonStatus === "failed" ? "Training generation failed" : "Training draft"}</small> : null}</td>{canManage && <td><div className="knowledge-row-actions"><button className="btn btn-secondary" type="button" disabled={isCollectionPending && savingDocumentId === document.id} onClick={() => reindex(document.id)}><RefreshCw className={isCollectionPending && savingDocumentId === document.id ? "spin" : ""} size={14}/> {document.chunkCount ? "Re-index" : "Index"}</button>{document.trainingLessonId && document.trainingLessonStatus !== "failed" ? <Link className="btn btn-secondary" href={`/training/${document.trainingLessonId}/review`} aria-label={`${document.trainingLessonPublished ? "Edit and republish" : "Review and publish"} training for ${document.title}`}><Pencil size={14}/> {document.trainingLessonPublished ? "Edit & republish" : "Review & publish"}</Link> : <button className="btn btn-secondary" type="button" disabled={savingDocumentId === document.id} onClick={() => generateTraining(document.id)}><BookOpenCheck size={14}/> {document.trainingLessonStatus === "failed" ? "Retry training" : "Create training"}</button>}<form action={deleteKnowledgeDocument}><input type="hidden" name="documentId" value={document.id}/><button className="btn btn-ghost danger-button" type="submit" aria-label={`Delete ${document.title}`}><Trash2 size={14}/> Delete</button></form></div></td>}</tr>;
+      })}</tbody></table></div> : <div className="output empty"><div><FileText size={30}/><h2>{documents.length ? "No documents match" : "No documents yet"}</h2><p>{documents.length ? "Try a different search." : canManage ? "Upload the first approved document for this workspace." : "A tenant administrator has not uploaded any documents."}</p>{query && <button className="btn btn-secondary" onClick={()=>setQuery("")}>Clear search</button>}</div></div>}
     </div>
   </>;
 }

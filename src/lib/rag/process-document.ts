@@ -6,7 +6,7 @@ import { extractDocumentPages, makeKnowledgeChunks } from "@/lib/rag/chunking";
 function vector(values: number[]) { return `[${values.join(",")}]`; }
 function publicError(error: unknown) { return error instanceof Error ? error.message.slice(0, 500) : "AI indexing could not be completed."; }
 
-export async function processKnowledgeDocument(input: { documentId: string; organizationId: string; locationId: string | null; productId: string | null; file: File }) {
+export async function processKnowledgeDocument(input: { documentId: string; organizationId: string; locationId: string | null; productId: string | null; sourceName: string; file: File }) {
   const admin = createAdminClient();
   await admin.from("knowledge_documents").update({ status: "processing", processing_error: null }).eq("id", input.documentId).eq("organization_id", input.organizationId);
   try {
@@ -18,6 +18,8 @@ export async function processKnowledgeDocument(input: { documentId: string; orga
     const { error: insertError } = await admin.from("knowledge_document_chunks").insert(chunks.map((chunk, chunkIndex) => ({
       organization_id: input.organizationId, document_id: input.documentId, chunk_index: chunkIndex, content: chunk.content,
       location_id: input.locationId, product_id: input.productId, page_number: chunk.pageNumber, section: chunk.section,
+      source_name: input.sourceName,
+      metadata: { page_number: chunk.pageNumber, section: chunk.section, location_id: input.locationId, product_id: input.productId },
       embedding: vector(embeddings[chunkIndex]), embedding_model: EMBEDDING_MODEL,
     })));
     if (insertError) throw insertError;

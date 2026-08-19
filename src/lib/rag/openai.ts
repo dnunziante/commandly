@@ -34,7 +34,6 @@ export async function createGroundedAnswer(question: string, sourceContext: stri
   const system = `You are the Refyntra Sales Assistant. Answer only from the SOURCE EXCERPTS below. If they do not contain enough information, say that the information cannot be verified from the approved Refyntra knowledge. Never invent specifications, pricing, warranties, availability, or policies. Product-specific excerpts take priority over general excerpts. Be direct and helpful.\n\n${tenantInstructions ? `ORGANIZATION INSTRUCTIONS:\n${tenantInstructions}\n\n` : ""}SOURCE EXCERPTS:\n${sourceContext}`;
   const data = await requestOpenAI("chat/completions", {
     model: CHAT_MODEL,
-    temperature: 0.2,
     messages: [{ role: "system", content: system }, { role: "user", content: question }],
   });
   const content = data?.choices?.[0]?.message?.content;

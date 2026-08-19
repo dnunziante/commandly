@@ -1,8 +1,10 @@
-import { BookOpenCheck, CheckCircle2, Clock, ExternalLink, FileText, Lightbulb, ShieldCheck } from "lucide-react";
+import { ArrowRight, BookOpenCheck, CheckCircle2, Clock, ExternalLink, FileText, Lightbulb, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { TrainingKnowledgeCheck } from "@/components/training-knowledge-check";
+import type { TrainingModuleProgress } from "@/lib/training/data";
 import type { TrainingLessonDTO } from "@/lib/training/types";
 
-export function TrainingLessonContent({ lesson, reviewer = false }: { lesson: TrainingLessonDTO; reviewer?: boolean }) {
+export function TrainingLessonContent({ lesson, completed = false, reviewer = false, moduleProgress }: { lesson: TrainingLessonDTO; completed?: boolean; reviewer?: boolean; moduleProgress?: TrainingModuleProgress | null }) {
   const hasGeneratedContent = lesson.content.sections.length > 0;
   return <div className="training-detail-layout">
     <article className="card training-detail-card">
@@ -13,9 +15,10 @@ export function TrainingLessonContent({ lesson, reviewer = false }: { lesson: Tr
         <section className="training-content-section"><h2>Key Takeaways</h2><ul>{lesson.content.keyTakeaways.map((takeaway, index) => <li key={index}><CheckCircle2 size={15}/>{takeaway}</li>)}</ul></section>
         {lesson.content.practicalApplication && <section className="training-content-section"><h2>Practical Application</h2><p>{lesson.content.practicalApplication}</p></section>}
         {lesson.content.scenario && <section className="training-content-section training-scenario"><h2>{lesson.content.scenario.title}</h2><p>{lesson.content.scenario.situation}</p><h3>Recommended approach</h3><p>{lesson.content.scenario.recommendedApproach}</p></section>}
-        {lesson.content.knowledgeCheck.length > 0 && <section className="training-content-section"><h2>Knowledge Check</h2><TrainingKnowledgeCheck questions={lesson.content.knowledgeCheck} reviewer={reviewer}/></section>}
+        {completed ? <section className="training-content-section"><div className="training-quiz-score"><strong>Training completed</strong><span>This lesson is marked complete in your training record.</span><Link className="btn btn-secondary" href="/training">Return to training</Link></div></section> : lesson.content.knowledgeCheck.length > 0 && <section className="training-content-section"><h2>Knowledge Check</h2><TrainingKnowledgeCheck questions={lesson.content.knowledgeCheck} lessonId={lesson.id} reviewer={reviewer}/></section>}
       </> : <section className="training-content-section"><span className="metric-icon"><BookOpenCheck size={20}/></span><h2>Approved learning material</h2><p>This existing lesson uses its linked source document as the training content.</p></section>}
       <a className="btn btn-secondary" href={`/api/knowledge/documents/${lesson.knowledgeDocumentId}/open`} target="_blank" rel="noreferrer"><ExternalLink size={16}/> Open source document</a>
+      {moduleProgress ? <div className="training-module-continue"><small>{moduleProgress.moduleTitle} · Lesson {moduleProgress.position} of {moduleProgress.totalLessons}</small>{moduleProgress.nextLesson ? completed ? <Link className="btn btn-primary" href={`/training/${moduleProgress.nextLesson.id}`}>Continue to: {moduleProgress.nextLesson.title}<ArrowRight size={16}/></Link> : <span>Complete this lesson to continue.</span> : completed ? <><span className="form-success">Module complete — every lesson is finished.</span><Link className="btn btn-primary" href="/training">Return to training<ArrowRight size={16}/></Link></> : <span>Complete this lesson to finish the module.</span>}</div> : null}
     </article>
     <aside className="card training-source-note"><Lightbulb size={22}/><div><h2>Grounded source</h2><p>This lesson was generated from the linked private document. Review the source whenever exact wording matters.</p></div></aside>
   </div>;

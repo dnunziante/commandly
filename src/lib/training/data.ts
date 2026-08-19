@@ -125,7 +125,78 @@ type TrainingModuleRow = {
 
 type TrainingModuleLessonRow = { module_id: string; lesson_id: string; sort_order: number };
 
-export async function getTrainingModules(options: { includeDrafts?: boolean } = {}): Promise<TrainingModulesResult> {
+export type TrainingModuleProgress = {
+  moduleTitle: string;
+  position: number;
+  totalLessons: number;
+  nextLesson?: Pick<TrainingLessonDTO, "id" | "title">;
+};
+
+export async function getTrainingModuleProgress(lessonId: string): Promise<TrainingModuleProgress | null> {
+  const viewer = await getViewer();
+  if (!/^[0-9a-f-]{36}$/i.test(lessonId) || !viewer?.organizationId) return null;
+
+  const supabase = await createClient();
+  const { data: memberships, error: membershipError } = await supabase
+    .from("training_module_lessons")
+    .select("module_id, lesson_id, sort_order")
+    .eq("organization_id", viewer.organizationId)
+    .eq("lesson_id", lessonId)
+    .order("sort_order", { ascending: true });
+  if (membershipError || !memberships?.length) return null;
+
+  const moduleIds = memberships.map((membership) => membership.module_id as string);
+  const { data: modules, error: modulesError } = await supabase
+    .from("training_modules")
+    .select("id, title")
+    .eq("organization_id", viewer.organizationId)
+    .eq("is_published", true)
+    .in("id", moduleIds)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const trainingModule = modules?.[0] as { id: string; title: string } | undefined;
+  if (modulesError || !trainingModule) return null;
+
+  const [{ data: assignments, error: assignmentsError }, lessonResult] = await Promise.all([
+    supabase
+      .from("training_module_lessons")
+      .select("module_id, lesson_id, sort_order")
+      .eq("organization_id", viewer.organizationId)
+      .eq("module_id", trainingModule.id)
+      .order("sort_order", { ascending: true }),
+    getTrainingLessons(),
+  ]);
+  if (assignmentsError || lessonResult.error) return null;
+
+  const lessonsById = new Map(lessonResult.lessons.map((lesson) => [lesson.id, lesson]));
+  const orderedLessons = (assignments as TrainingModuleLessonRow[])
+    .map((assignment) => lessonsById.get(assignment.lesson_id))
+    .filter((lesson): lesson is TrainingLessonDTO => Boolean(lesson));
+  const position = orderedLessons.findIndex((lesson) => lesson.id === lessonId);
+  if (position < 0) return null;
+
+  return {
+    moduleTitle: trainingModule.title,
+    position: position + 1,
+    totalLessons: orderedLessons.length,
+    nextLesson: orderedLessons[position + 1] ? { id: orderedLessons[position + 1].id, title: orderedLessons[position + 1].title } : undefined,
+  };
+}
+
+export async function getCompletedTrainingLessonIds(): Promise<string[]> {
+  const viewer = await getViewer();
+  if (viewer?.demo || isLocalDemoMode()) return [];
+  if (!viewer?.organizationId) return [];
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("training_progress").select("lesson_id").eq("organization_id", viewer.organizationId).eq("user_id", viewer.id).eq("status", "completed");
+  return error ? [] : (data ?? []).map((row) => row.lesson_id as string);
+}
+
+export async function getTrainingLessonCompleted(lessonId: string): Promise<boolean> {
+  return (await getCompletedTrainingLessonIds()).includes(lessonId);
+}
+
+export async function getTrainingModules(options: { includeDrafts?: boolean; includeDraftLessons?: boolean } = {}): Promise<TrainingModulesResult> {
   const viewer = await getViewer();
   if (viewer?.demo || isLocalDemoMode()) return { modules: demoTrainingModules, lessons: demoTrainingLessons };
   if (!viewer?.organizationId) return { modules: [], lessons: [], error: "Your account is not assigned to an organization." };
@@ -140,7 +211,7 @@ export async function getTrainingModules(options: { includeDrafts?: boolean } = 
 
   const [{ data: modules, error: modulesError }, lessonResult, { data: assignments, error: assignmentsError }] = await Promise.all([
     moduleQuery,
-    getTrainingLessons({ includeDrafts: options.includeDrafts }),
+    getTrainingLessons({ includeDrafts: options.includeDrafts || options.includeDraftLessons }),
     supabase
       .from("training_module_lessons")
       .select("module_id, lesson_id, sort_order")

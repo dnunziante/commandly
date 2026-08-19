@@ -35,10 +35,11 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
   const supabase = await createClient();
   const { data: validLessons, error: lessonError } = await supabase
     .from("training_lessons")
-    .select("id")
+    .select("id, is_published")
     .eq("organization_id", viewer.organizationId)
     .in("id", requestedLessonIds);
   if (lessonError || !validLessons || validLessons.length !== requestedLessonIds.length) return { error: "One or more selected lessons are unavailable.", success: "" };
+  if (isPublished && validLessons.some((lesson) => !lesson.is_published)) return { error: "Publish every selected lesson before publishing this module.", success: "" };
 
   const validIds = new Set(validLessons.map((lesson) => lesson.id));
   const orderedLessonIds = requestedLessonIds
@@ -100,9 +101,15 @@ export async function saveTrainingModule(_previousState: TrainingModuleActionSta
   return { error: "", success: `${title} was saved${isPublished ? " and published" : " as a draft"}.` };
 }
 
+async function requireTrainingReviewer() {
+  const viewer = await getViewer();
+  if (!viewer?.organizationId || !["manager", "tenant_admin", "platform_owner"].includes(viewer.role)) throw new Error("Unauthorized");
+  return viewer;
+}
+
 export async function deleteTrainingDraft(_previousState: TrainingDraftActionState, formData: FormData): Promise<TrainingDraftActionState> {
   if (isLocalDemoMode()) return { error: "Training draft deletion is disabled in local demo mode.", success: "" };
-  const viewer = await requireTenantAdmin();
+  const viewer = await requireTrainingReviewer();
   const lessonId = String(formData.get("lessonId") || "");
   if (!uuidPattern.test(lessonId)) return { error: "The selected training draft is invalid.", success: "" };
 
@@ -138,4 +145,31 @@ export async function deleteTrainingDraft(_previousState: TrainingDraftActionSta
   revalidatePath("/training");
   revalidatePath("/training/review");
   return { error: "", success: `${draft.title} was deleted. The linked knowledge upload was kept.` };
+}
+
+export async function deleteTrainingModule(_previousState: TrainingModuleActionState, formData: FormData): Promise<TrainingModuleActionState> {
+  if (isLocalDemoMode()) return { error: "Module deletion is disabled in local demo mode.", success: "" };
+  const viewer = await requireTenantAdmin();
+  const moduleId = String(formData.get("moduleId") || "");
+  if (!uuidPattern.test(moduleId)) return { error: "The selected module is invalid.", success: "" };
+
+  const supabase = await createClient();
+  const { data: trainingModule, error: moduleError } = await supabase
+    .from("training_modules")
+    .select("id, title")
+    .eq("id", moduleId)
+    .eq("organization_id", viewer.organizationId)
+    .maybeSingle();
+  if (moduleError || !trainingModule) return { error: "This training module is unavailable.", success: "" };
+
+  const { error: deleteError } = await supabase
+    .from("training_modules")
+    .delete()
+    .eq("id", moduleId)
+    .eq("organization_id", viewer.organizationId);
+  if (deleteError) return { error: "The training module could not be deleted.", success: "" };
+
+  revalidatePath("/training");
+  revalidatePath("/admin/training");
+  return { error: "", success: `${trainingModule.title} was deleted. Its lessons and Knowledge Base uploads were kept.` };
 }

@@ -1,14 +1,18 @@
 "use client";
 
 import { CheckCircle2, RotateCcw, XCircle } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useState, useTransition } from "react";
+import { completeTrainingLesson } from "@/app/training/actions";
 import type { TrainingQuestion } from "@/lib/training/generated";
 
 type AnswerMap = Record<string, string>;
 
-export function TrainingKnowledgeCheck({ questions, reviewer = false }: { questions: TrainingQuestion[]; reviewer?: boolean }) {
+export function TrainingKnowledgeCheck({ questions, lessonId, reviewer = false }: { questions: TrainingQuestion[]; lessonId: string; reviewer?: boolean }) {
   const [answers, setAnswers] = useState<AnswerMap>({});
   const [submitted, setSubmitted] = useState(false);
+  const [completionError, setCompletionError] = useState("");
+  const [isCompleting, startCompletion] = useTransition();
   const answeredCount = questions.filter((question) => Boolean(answers[question.id])).length;
   const score = questions.reduce((total, question) => total + (answers[question.id] === question.correctAnswer ? 1 : 0), 0);
 
@@ -20,6 +24,17 @@ export function TrainingKnowledgeCheck({ questions, reviewer = false }: { questi
   function retry() {
     setAnswers({});
     setSubmitted(false);
+  }
+
+  function submit() {
+    setSubmitted(true);
+    setCompletionError("");
+    startCompletion(async () => {
+      const formData = new FormData();
+      formData.set("lessonId", lessonId);
+      const result = await completeTrainingLesson({ error: "", success: "" }, formData);
+      if (result.error) setCompletionError(result.error);
+    });
   }
 
   return <div className="training-quiz">
@@ -48,11 +63,11 @@ export function TrainingKnowledgeCheck({ questions, reviewer = false }: { questi
     })}
     <div className="training-quiz-actions">
       {submitted ? <>
-        <div className="training-quiz-score" role="status"><strong>Your score: {score} of {questions.length}</strong><span>{score === questions.length ? "Great work — every answer is correct." : "Review the explanations below, then try again."}</span></div>
+        <div className="training-quiz-score" role="status"><strong>{isCompleting ? "Saving completion..." : "Training completed"}</strong><span>Your score: {score} of {questions.length}. {score === questions.length ? "Great work — every answer is correct." : "Review the explanations below whenever you would like a refresher."}</span>{completionError ? <small className="form-error">{completionError}</small> : <Link className="btn btn-secondary" href="/training">Return to training</Link>}</div>
         <button className="btn btn-secondary" onClick={retry} type="button"><RotateCcw size={15}/> Try again</button>
       </> : <>
         <span>{answeredCount} of {questions.length} answered</span>
-        <button className="btn btn-primary" disabled={answeredCount !== questions.length} onClick={() => setSubmitted(true)} type="button">Submit knowledge check</button>
+        <button className="btn btn-primary" disabled={answeredCount !== questions.length} onClick={submit} type="button">Submit knowledge check</button>
       </>}
     </div>
   </div>;

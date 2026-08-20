@@ -4,7 +4,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { demoProductFamilies as demoFamilies, demoProducts } from "@/lib/demo/catalog";
 import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
-import type { ProductDTO, ProductFamilyResult, ProductResult, ProductStatus, SalesGuideDTO } from "./types";
+import type { ProductDTO, ProductFamilyResult, ProductResult, ProductStatus, ProductType, SalesGuideDTO } from "./types";
 
 type ProductRow = {
   id: string;
@@ -12,6 +12,14 @@ type ProductRow = {
   name: string;
   slug: string;
   model: string;
+  brand: string;
+  manufacturer: string;
+  model_year: number | null;
+  model_variant: string;
+  product_type: ProductType;
+  product_category: string;
+  sale_price_cents: number | null;
+  specifications: Record<string, unknown> | null;
   description: string;
   base_price_cents: number;
   range_text: string;
@@ -63,6 +71,14 @@ function toDTO(row: ProductRow, imageUrls: string[] = [], imagePaths: string[] =
     name: row.name,
     slug: row.slug,
     model: row.model,
+    brand: row.brand || "",
+    manufacturer: row.manufacturer || "",
+    modelYear: row.model_year,
+    modelVariant: row.model_variant || "",
+    productType: row.product_type || "our_product",
+    productCategory: row.product_category || "",
+    salePrice: row.sale_price_cents === null ? null : row.sale_price_cents / 100,
+    specifications: Object.fromEntries(Object.entries(row.specifications || {}).filter(([, value]) => typeof value === "string").map(([key, value]) => [key, value as string])),
     description: row.description,
     price: row.base_price_cents / 100,
     range: row.range_text,
@@ -96,7 +112,7 @@ export async function getTenantProducts(options: { includeDrafts?: boolean; fami
   const supabase = await createClient();
   let query = supabase
     .from("products")
-    .select("id, family_id, name, slug, model, description, base_price_cents, range_text, seats_text, powertrain_text, dimensions, running_distance, turning_radius, max_load_capacity, sort_order, highlights, visual_theme, image_path, image_paths, sales_guide, status")
+    .select("id, family_id, name, slug, model, brand, manufacturer, model_year, model_variant, product_type, product_category, sale_price_cents, specifications, description, base_price_cents, range_text, seats_text, powertrain_text, dimensions, running_distance, turning_radius, max_load_capacity, sort_order, highlights, visual_theme, image_path, image_paths, sales_guide, status")
     .eq("organization_id", viewer.organizationId)
     .order("sort_order")
     .order("name");

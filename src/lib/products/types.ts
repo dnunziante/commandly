@@ -1,4 +1,5 @@
 export type ProductStatus = "Draft" | "Published" | "Archived";
+export type ProductType = "our_product" | "competitor_product";
 
 export type SalesGuideDTO = {
   bestFitCustomer: string;
@@ -17,6 +18,14 @@ export type ProductDTO = {
   name: string;
   slug: string;
   model: string;
+  brand?: string;
+  manufacturer?: string;
+  modelYear?: number | null;
+  modelVariant?: string;
+  productType?: ProductType;
+  productCategory?: string;
+  salePrice?: number | null;
+  specifications?: Record<string, string>;
   description: string;
   price: number;
   range: string;

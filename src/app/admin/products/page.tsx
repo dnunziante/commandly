@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { AdminProductCategoryList } from "@/components/admin-product-category-list";
+import { ProductBulkImport } from "@/components/product-bulk-import";
 import { AdminProductForm } from "@/components/admin-product-form";
 import { PageHeader } from "@/components/page-header";
 import { ProductFamilyImageManager } from "@/components/product-family-image-manager";
@@ -19,6 +20,7 @@ export default async function AdminProductsPage() {
     {viewer?.organizationId && <ProductFamilyImageManager families={familyResult.families} organizationId={viewer.organizationId}/>}
     <div className="admin-product-layout" style={{marginTop:18}}>
       <AdminProductForm families={familyResult.families}/>
+      <ProductBulkImport />
       <div className="card">
         <div className="metric-row"><h2>Workspace products</h2><span className="badge blue">{result.products.length} total</span></div>
         {result.products.length ? <AdminProductCategoryList key={result.products.map((product) => `${product.id}:${product.status}:${product.sortOrder}`).join("|")} categories={categories.map((family) => ({ ...family, products: result.products.filter((product) => product.familyId === family.id) }))}/> : <div className="output empty"><div><h3>No products yet</h3><p>Add the first product for this organization.</p></div></div>}

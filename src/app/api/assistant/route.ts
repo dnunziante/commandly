@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { createClient } from "@/lib/supabase/server";
 import { createEmbeddings, createGroundedAnswer } from "@/lib/rag/openai";
 import { formatProductContext, selectRelevantProducts, type ApprovedProduct } from "@/lib/rag/product-context";
+import { formatCommunicationContext, getCommunicationContext } from "@/lib/rag/communication-context";
 
 type SearchChunk = { document_name: string; content: string; section: string | null; page_number: number | null; similarity: number };
 const MINIMUM_SIMILARITY = 0.35;
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
     const supabase = await createClient();
     const { data: membership } = await supabase.from("organization_memberships").select("location_id").eq("organization_id", viewer.organizationId).eq("user_id", viewer.id).eq("status", "active").maybeSingle();
     const [embedding] = await createEmbeddings([question]);
-    const [{ data: chunks, error }, { data: productRows, error: productError }] = await Promise.all([
+    const [{ data: chunks, error }, { data: productRows, error: productError }, communication] = await Promise.all([
       supabase.rpc("match_knowledge_chunks", {
         query_embedding: `[${embedding.join(",")}]`, match_tenant_id: viewer.organizationId,
         match_location_id: membership?.location_id || null, match_product_id: null, match_count: 8,
@@ -29,6 +30,7 @@ export async function POST(request: Request) {
         .select("id, name, model, description, base_price_cents, range_text, seats_text, powertrain_text, dimensions, running_distance, turning_radius, max_load_capacity, highlights, sales_guide")
         .eq("organization_id", viewer.organizationId).eq("status", "published")
         .order("sort_order", { ascending: true }).limit(250),
+      getCommunicationContext(supabase, viewer.organizationId, embedding),
     ]);
     if (error) throw error;
     if (productError) throw productError;
@@ -40,8 +42,7 @@ export async function POST(request: Request) {
     const productContext = products.map((product, index) => `[P${index + 1}] ${formatProductContext(product)}`);
     const documentContext = results.map((chunk, index) => `[${index + 1}] ${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`);
     const sourceContext = [...productContext, ...documentContext].join("\n\n");
-    const { data: settings } = await supabase.from("organization_settings").select("assistant_instructions").eq("organization_id", viewer.organizationId).maybeSingle();
-    const answer = await createGroundedAnswer(question, sourceContext, settings?.assistant_instructions);
+    const answer = await createGroundedAnswer(question, sourceContext, formatCommunicationContext(communication));
     await supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" });
 
     const sourceKeys = new Set<string>();

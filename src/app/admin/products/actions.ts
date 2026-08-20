@@ -43,6 +43,8 @@ export async function createProduct(
   const viewer = await requireTenantAdmin();
   const name = String(formData.get("name") || "").trim();
   const familyId = String(formData.get("familyId") || "");
+  const productType = formData.get("productType") === "competitor_product" ? "competitor_product" : "our_product";
+  const productCategory = String(formData.get("productCategory") || "").trim().slice(0, 120);
   const model = String(formData.get("model") || "").trim();
   const description = String(formData.get("description") || "").trim();
   const rangeText = String(formData.get("range") || "").trim();
@@ -60,23 +62,26 @@ export async function createProduct(
     .filter(Boolean)
     .slice(0, 8);
 
-  if (name.length < 2 || !Number.isFinite(price) || price < 0 || !/^[0-9a-f-]{36}$/i.test(familyId)) {
-    return { error: "Choose a product family, enter a product name, and use a valid non-negative price.", success: "" };
+  if (name.length < 2 || !Number.isFinite(price) || price < 0 || (productType === "our_product" && !/^[0-9a-f-]{36}$/i.test(familyId))) {
+    return { error: "Choose a catalog family for an Our Product, enter a product name, and use a valid non-negative price.", success: "" };
   }
   if (!allowedFrames.has(rangeText) || !allowedCapacities.has(seatsText) || !allowedPowertrains.has(powertrainText)) {
     return { error: "Choose a valid frame, capacity, and powertrain.", success: "" };
   }
 
   const supabase = await createClient();
-  const { data: family } = await supabase.from("product_families").select("id").eq("id", familyId).eq("organization_id", viewer.organizationId).maybeSingle();
-  if (!family) return { error: "Choose a product family from this workspace.", success: "" };
+  const { data: family } = familyId ? await supabase.from("product_families").select("id").eq("id", familyId).eq("organization_id", viewer.organizationId).maybeSingle() : { data: null };
+  if (productType === "our_product" && !family) return { error: "Choose a product family from this workspace.", success: "" };
   const productId = crypto.randomUUID();
-  const { data: lastProduct } = await supabase.from("products").select("sort_order").eq("organization_id", viewer.organizationId).eq("family_id", familyId).order("sort_order", { ascending: false }).limit(1).maybeSingle();
+  const lastQuery = supabase.from("products").select("sort_order").eq("organization_id", viewer.organizationId);
+  const { data: lastProduct } = familyId ? await lastQuery.eq("family_id", familyId).order("sort_order", { ascending: false }).limit(1).maybeSingle() : await lastQuery.order("sort_order", { ascending: false }).limit(1).maybeSingle();
 
   const { error } = await supabase.from("products").insert({
     id: productId,
     organization_id: viewer.organizationId,
-    family_id: familyId,
+    family_id: familyId || null,
+    product_type: productType,
+    product_category: productCategory || (productType === "competitor_product" ? "Competitor Vehicles" : ""),
     name,
     slug: `${slugify(name)}-${slugify(model || "standard")}`,
     model,

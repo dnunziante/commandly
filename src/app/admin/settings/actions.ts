@@ -15,13 +15,14 @@ export async function saveOrganizationSettings(_previousState: OrganizationSetti
   const contactEmail = String(formData.get("contactEmail") || "").trim();
   const defaultLocationId = String(formData.get("defaultLocationId") || "");
   const assistantInstructions = String(formData.get("assistantInstructions") || "").trim();
-  if (displayName.length < 2 || displayName.length > 120 || !/^#[0-9A-Fa-f]{6}$/.test(primaryColor) || assistantInstructions.length > 8000 || (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) || (defaultLocationId && !/^[0-9a-f-]{36}$/i.test(defaultLocationId))) return { error: "Enter a company name, a six-digit color such as #0B5CFF, a valid email, and a valid location.", success: "" };
+  const communicationRules = String(formData.get("communicationRules") || "").trim();
+  if (displayName.length < 2 || displayName.length > 120 || !/^#[0-9A-Fa-f]{6}$/.test(primaryColor) || assistantInstructions.length > 8000 || communicationRules.length > 12000 || (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) || (defaultLocationId && !/^[0-9a-f-]{36}$/i.test(defaultLocationId))) return { error: "Enter a company name, a six-digit color such as #0B5CFF, a valid email, valid AI instructions, and a valid location.", success: "" };
   const supabase = await createClient();
   if (defaultLocationId) {
     const { data: location } = await supabase.from("locations").select("id").eq("id", defaultLocationId).eq("organization_id", viewer.organizationId).maybeSingle();
     if (!location) return { error: "Choose a location from this organization.", success: "" };
   }
-  const { error } = await supabase.from("organization_settings").upsert({ organization_id: viewer.organizationId, display_name: displayName, primary_color: primaryColor, contact_email: contactEmail || null, default_location_id: defaultLocationId || null, assistant_instructions: assistantInstructions, updated_at: new Date().toISOString() }, { onConflict: "organization_id" });
+  const { error } = await supabase.from("organization_settings").upsert({ organization_id: viewer.organizationId, display_name: displayName, primary_color: primaryColor, contact_email: contactEmail || null, default_location_id: defaultLocationId || null, assistant_instructions: assistantInstructions, communication_rules: communicationRules, updated_at: new Date().toISOString() }, { onConflict: "organization_id" });
   if (error) return { error: "Settings could not be saved to the shared workspace.", success: "" };
   revalidatePath("/admin/settings");
   return { error: "", success: "Settings were saved to the shared workspace." };

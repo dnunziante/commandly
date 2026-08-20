@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const title = String(formData.get("title") || "").trim();
   const requestedCollection = String(formData.get("collection") || "General");
   const collection = isKnowledgeCollection(requestedCollection) ? requestedCollection : "General";
+  const contextType = formData.get("contextType") === "communication_example" ? "communication_example" : "knowledge";
   const addToTraining = formData.get("addToTraining") === "on";
   const trainingOptions = parseTrainingGenerationOptions({
     estimatedMinutes: formData.get("lessonLength"),
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
       mime_type: file.type,
       size_bytes: file.size,
       collection,
+      context_type: contextType,
       status: "processing",
       location_id: locationId,
       product_id: productId,

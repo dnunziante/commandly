@@ -11,10 +11,10 @@ export function SalesContentManager({ contentType, label, items, canManage }: { 
   const [selected, setSelected] = useState<SalesContentItem | null>(null);
   const [state, action, pending] = useActionState(saveSalesContent, initialState);
   const beginNew = () => setSelected(null);
-  return <div className="grid grid-2">
-    <section className="card form-stack">
+  return <div className="sales-content-workspace">
+    <section className="card sales-content-editor">
       <div className="metric-row"><div><span className="badge blue">Shared workspace</span><h2>{selected ? "Edit content" : `New ${label.toLowerCase()}`}</h2></div><button className="btn btn-secondary" type="button" onClick={beginNew}><Plus size={16}/> New</button></div>
-      {!canManage ? <p className="form-error">Sign in as a tenant administrator to add or edit shared content.</p> : <form key={selected?.id || "new"} className="form-stack" action={action}>
+      {!canManage ? <p className="form-error">Sign in as a tenant administrator to add or edit shared content.</p> : <form key={selected?.id || "new"} className="form-stack sales-content-form" action={action}>
         <input type="hidden" name="id" value={selected?.id || ""}/><input type="hidden" name="contentType" value={contentType}/>
         <label><span className="label">Title</span><input className="input" name="title" required minLength={2} maxLength={160} defaultValue={selected?.title || ""} placeholder={`e.g. ${label} for first-time buyers`}/></label>
         <label><span className="label">Content</span><textarea className="input" name="body" required rows={12} minLength={2} maxLength={12000} defaultValue={selected?.body || ""} placeholder="Add the approved wording your team should use."/></label>
@@ -23,8 +23,8 @@ export function SalesContentManager({ contentType, label, items, canManage }: { 
         <button className="btn btn-primary" disabled={pending}><Save size={16}/>{pending ? "Saving…" : "Save shared content"}</button>
       </form>}
     </section>
-    <section className="card"><div className="metric-row"><div><h2>Saved {label.toLowerCase()}</h2><p>{items.length} item{items.length === 1 ? "" : "s"} in this BGC workspace.</p></div></div>
-      {items.length ? <div className="form-stack">{items.map((item) => <button className="card" style={{ textAlign: "left" }} type="button" key={item.id} onClick={() => setSelected(item)}><div className="metric-row"><strong>{item.title}</strong><span className={`badge ${item.status === "published" ? "blue" : item.status === "draft" ? "amber" : ""}`}>{item.status}</span></div><p>{item.body.length > 180 ? `${item.body.slice(0, 180)}…` : item.body}</p><small><Pencil size={13}/> Edit shared content</small></button>)}</div> : <div className="output empty"><div><h3>No {label.toLowerCase()} yet</h3><p>Add the approved material you want available before AI testing.</p></div></div>}
+    <section className="card sales-content-library"><div className="metric-row sales-content-library-heading"><div><h2>Saved {label.toLowerCase()}</h2><p>{items.length} item{items.length === 1 ? "" : "s"} in this BGC workspace.</p></div></div>
+      {items.length ? <div className="form-stack sales-content-list">{items.map((item) => <button className="card" style={{ textAlign: "left" }} type="button" key={item.id} onClick={() => setSelected(item)}><div className="metric-row"><strong>{item.title}</strong><span className={`badge ${item.status === "published" ? "blue" : item.status === "draft" ? "amber" : ""}`}>{item.status}</span></div><p>{item.body.length > 180 ? `${item.body.slice(0, 180)}…` : item.body}</p><small><Pencil size={13}/> Edit shared content</small></button>)}</div> : <div className="output empty"><div><h3>No {label.toLowerCase()} yet</h3><p>Add the approved material you want available before AI testing.</p></div></div>}
     </section>
   </div>;
 }

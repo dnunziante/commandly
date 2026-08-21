@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const productContext = products.map((product, index) => `[P${index + 1}] ${formatProductContext(product)}`);
     const documentContext = results.map((chunk, index) => `[${index + 1}] ${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`);
     const sourceContext = [...productContext, ...documentContext].join("\n\n");
-    const answer = await createGroundedAnswer(question, sourceContext, formatCommunicationContext(communication));
+    const answer = await createGroundedAnswer(question, sourceContext, communication.standards, formatCommunicationContext(communication));
     await supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" });
 
     const sourceKeys = new Set<string>();

@@ -7,6 +7,28 @@ import { createClient } from "@/lib/supabase/server";
 export type OrganizationSettingsActionState = { error: string; success: string };
 export type AddLocationState = { error: string; success: string };
 
+const option = (value: FormDataEntryValue | null, allowed: string[], fallback: string) => typeof value === "string" && allowed.includes(value) ? value : fallback;
+export async function saveAICommunicationStandards(_previousState: OrganizationSettingsActionState, formData: FormData): Promise<OrganizationSettingsActionState> {
+  const viewer = await getViewer();
+  if (!viewer?.organizationId || viewer.demo || !["tenant_admin", "platform_owner"].includes(viewer.role)) return { error: "Tenant administrator access is required.", success: "" };
+  const advanced = String(formData.get("advancedInstructions") || "").trim();
+  if (advanced.length > 12000) return { error: "Advanced instructions must be 12,000 characters or fewer.", success: "" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("organization_settings").update({
+    ai_tone: option(formData.get("tone"), ["professional","conversational","friendly","direct","consultative"], "conversational"),
+    ai_response_length: option(formData.get("responseLength"), ["concise","balanced","detailed"], "balanced"),
+    ai_sales_approach: option(formData.get("salesApproach"), ["consultative","educational","direct","relationship_focused"], "consultative"),
+    ai_discovery_level: option(formData.get("discoveryLevel"), ["minimal","moderate","thorough"], "moderate"),
+    ai_competitor_behavior: option(formData.get("competitorBehavior"), ["do_not_discuss","when_asked","when_helpful"], "when_asked"),
+    ai_cta_strength: option(formData.get("ctaStrength"), ["soft","balanced","strong"], "balanced"),
+    ai_formatting: { shortParagraphs: formData.has("useShortParagraphs"), bullets: formData.has("useBullets"), headings: formData.has("useHeadings"), avoidLargeBlocks: formData.has("avoidLargeBlocks") },
+    ai_recommendation_behavior: { askDiscoveryBeforeRecommendation: formData.has("askDiscoveryBeforeRecommendation"), explainRecommendation: formData.has("explainRecommendation"), offerAlternative: formData.has("offerAlternative"), connectBenefits: formData.has("connectBenefits") },
+    ai_advanced_instructions: advanced, updated_at: new Date().toISOString(),
+  }).eq("organization_id", viewer.organizationId);
+  if (error) return { error: "AI Communication Standards could not be saved.", success: "" };
+  revalidatePath("/admin/ai-communication"); return { error: "", success: "AI Communication Standards were saved for this organization." };
+}
+
 export async function saveOrganizationSettings(_previousState: OrganizationSettingsActionState, formData: FormData): Promise<OrganizationSettingsActionState> {
   const viewer = await getViewer();
   if (!viewer?.organizationId || viewer.demo || !["tenant_admin", "platform_owner"].includes(viewer.role)) return { error: "Sign in as a tenant administrator to save shared settings.", success: "" };
@@ -14,15 +36,13 @@ export async function saveOrganizationSettings(_previousState: OrganizationSetti
   const primaryColor = String(formData.get("primaryColor") || "").trim();
   const contactEmail = String(formData.get("contactEmail") || "").trim();
   const defaultLocationId = String(formData.get("defaultLocationId") || "");
-  const assistantInstructions = String(formData.get("assistantInstructions") || "").trim();
-  const communicationRules = String(formData.get("communicationRules") || "").trim();
-  if (displayName.length < 2 || displayName.length > 120 || !/^#[0-9A-Fa-f]{6}$/.test(primaryColor) || assistantInstructions.length > 8000 || communicationRules.length > 12000 || (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) || (defaultLocationId && !/^[0-9a-f-]{36}$/i.test(defaultLocationId))) return { error: "Enter a company name, a six-digit color such as #0B5CFF, a valid email, valid AI instructions, and a valid location.", success: "" };
+  if (displayName.length < 2 || displayName.length > 120 || !/^#[0-9A-Fa-f]{6}$/.test(primaryColor) || (contactEmail && !/^\S+@\S+\.\S+$/.test(contactEmail)) || (defaultLocationId && !/^[0-9a-f-]{36}$/i.test(defaultLocationId))) return { error: "Enter a company name, a six-digit color such as #0B5CFF, a valid email, and a valid location.", success: "" };
   const supabase = await createClient();
   if (defaultLocationId) {
     const { data: location } = await supabase.from("locations").select("id").eq("id", defaultLocationId).eq("organization_id", viewer.organizationId).maybeSingle();
     if (!location) return { error: "Choose a location from this organization.", success: "" };
   }
-  const { error } = await supabase.from("organization_settings").upsert({ organization_id: viewer.organizationId, display_name: displayName, primary_color: primaryColor, contact_email: contactEmail || null, default_location_id: defaultLocationId || null, assistant_instructions: assistantInstructions, communication_rules: communicationRules, updated_at: new Date().toISOString() }, { onConflict: "organization_id" });
+  const { error } = await supabase.from("organization_settings").upsert({ organization_id: viewer.organizationId, display_name: displayName, primary_color: primaryColor, contact_email: contactEmail || null, default_location_id: defaultLocationId || null, updated_at: new Date().toISOString() }, { onConflict: "organization_id" });
   if (error) return { error: "Settings could not be saved to the shared workspace.", success: "" };
   revalidatePath("/admin/settings");
   return { error: "", success: "Settings were saved to the shared workspace." };

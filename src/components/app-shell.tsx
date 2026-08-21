@@ -43,6 +43,7 @@ const coachLinks = [
   ["Practice Scenarios", "/coach/scenarios", Target],
   ["Start Role Play", "/coach/session", MessagesSquare],
   ["Session Review", "/coach/review", BarChart3],
+  ["My Development", "/coach/development", TrendingUp],
 ] as const;
 
 export function AppShell({ children, title }: { children: React.ReactNode; title: string }) {

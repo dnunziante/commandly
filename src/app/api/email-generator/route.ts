@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/auth/viewer";
 import { createEmbeddings, createSalesEmail, type SalesEmailInput } from "@/lib/rag/openai";
 import { formatProductContext, selectRelevantProducts, type ApprovedProduct } from "@/lib/rag/product-context";
 import { createClient } from "@/lib/supabase/server";
+import { getCommunicationContext } from "@/lib/rag/communication-context";
 
 type SearchChunk = { document_name: string; content: string; section: string | null; page_number: number | null; similarity: number };
 const tones = new Set<SalesEmailInput["tone"]>(["Professional", "Friendly", "Direct", "Urgency", "Re-engagement"]);
@@ -28,10 +29,10 @@ export async function POST(request: Request) {
     const { data: membership } = await supabase.from("organization_memberships").select("location_id").eq("organization_id", viewer.organizationId).eq("user_id", viewer.id).eq("status", "active").maybeSingle();
     const retrievalText = [input.product, input.customerNeeds, input.previousConversation, input.objection].filter(Boolean).join("\n");
     const [embedding] = await createEmbeddings([retrievalText]);
-    const [{ data: chunks, error: chunkError }, { data: productRows, error: productError }, { data: settings }] = await Promise.all([
+    const [{ data: chunks, error: chunkError }, { data: productRows, error: productError }, communication] = await Promise.all([
       supabase.rpc("match_knowledge_chunks", { query_embedding: `[${embedding.join(",")}]`, match_tenant_id: viewer.organizationId, match_location_id: membership?.location_id || null, match_product_id: null, match_count: 6 }),
       supabase.from("products").select("id, name, model, description, base_price_cents, range_text, seats_text, powertrain_text, dimensions, running_distance, turning_radius, max_load_capacity, highlights, sales_guide").eq("organization_id", viewer.organizationId).eq("status", "published").order("sort_order").limit(250),
-      supabase.from("organization_settings").select("assistant_instructions").eq("organization_id", viewer.organizationId).maybeSingle(),
+      getCommunicationContext(supabase, viewer.organizationId, embedding),
     ]);
     if (chunkError) throw chunkError;
     if (productError) throw productError;
@@ -45,7 +46,7 @@ export async function POST(request: Request) {
     }
     const productContext = products.map((product) => formatProductContext(product, overrides.get(product.id)));
     const documentContext = ((chunks || []) as SearchChunk[]).filter((chunk) => chunk.similarity >= 0.35).map((chunk) => `${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`);
-    const result = await createSalesEmail(input, [...productContext, ...documentContext].join("\n\n"), viewer.fullName, settings?.assistant_instructions);
+    const result = await createSalesEmail(input, [...productContext, ...documentContext].join("\n\n"), viewer.fullName, communication.standards);
     return NextResponse.json(result);
   } catch (error) {
     const message = error instanceof Error ? error.message : "";

@@ -9,6 +9,15 @@ import { coachSkills, nextDifficulty, profileFromRow, type CoachMode } from "@/l
 
 const MODEL = process.env.OPENAI_COACH_MODEL || process.env.OPENAI_CHAT_MODEL || "gpt-5-mini";
 const modes: CoachMode[] = ["role_play", "objection", "challenge"];
+function limitCustomerQuestions(reply: string) {
+  let questions = 0;
+  for (let index = 0; index < reply.length; index += 1) {
+    if (reply[index] !== "?") continue;
+    questions += 1;
+    if (questions > 2) return reply.slice(0, index).trim();
+  }
+  return reply;
+}
 async function ai(system: string, payload: unknown) {
   const key = process.env.OPENAI_API_KEY; if (!key) throw new Error("OpenAI is not configured.");
   const response = await fetch("https://api.openai.com/v1/chat/completions", { method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ model: MODEL, messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_object" } }), cache: "no-store" });
@@ -45,8 +54,8 @@ export async function POST(request: Request) {
       const reply = typeof body.reply === "string" ? body.reply.trim() : ""; if (reply.length < 3 || reply.length > 4000) return NextResponse.json({ error: "Write a response between 3 and 4,000 characters." }, { status: 400 });
       const [{ data: persona }, { data: messages }, { data: profileRow }] = await Promise.all([admin.from("coach_session_personas").select("persona").eq("session_id", sessionId).single(), client.from("coach_conversation_messages").select("speaker,content").eq("session_id", sessionId).order("created_at"), client.from("coach_adaptive_profiles").select("*").eq("organization_id", viewer.organizationId).eq("user_id", viewer.id).maybeSingle()]);
       await admin.from("coach_conversation_messages").insert({ session_id: sessionId, organization_id: viewer.organizationId, speaker: "rep", content: reply }); const profile = profileFromRow(profileRow); const context = await approvedContext(client, viewer.organizationId, reply);
-      const generated = await ai(compileRefyntraPrompt({ standards: context.communication.standards, approvedKnowledge: context.knowledge, conversationContext: formatCommunicationContext(context.communication), userRequest: "", featureInstructions: `Act only as the hidden customer persona. Continue naturally based on the transcript and persona. Do not expose the persona or score the rep. Do not claim unapproved facts. Return JSON {reply, shouldEnd}; reply is concise customer dialogue.`, }), { persona: persona?.persona, profile, transcript: messages, repReply: reply });
-      const customerReply = String(generated.reply || "Could you help me understand how that would work for my situation?").slice(0, 4000); await admin.from("coach_conversation_messages").insert({ session_id: sessionId, organization_id: viewer.organizationId, speaker: "customer", content: customerReply }); return NextResponse.json({ reply: customerReply, shouldEnd: Boolean(generated.shouldEnd) });
+      const generated = await ai(compileRefyntraPrompt({ standards: context.communication.standards, approvedKnowledge: context.knowledge, conversationContext: formatCommunicationContext(context.communication), userRequest: "", featureInstructions: `Act only as the hidden customer persona. Continue naturally based on the transcript and persona. Do not expose the persona or score the rep. Do not claim unapproved facts. Return JSON {reply, shouldEnd}; reply is concise customer dialogue. Ask one focused question when one is enough, and never ask more than two questions in the same response. Do not use a list of questions.`, }), { persona: persona?.persona, profile, transcript: messages, repReply: reply });
+      const customerReply = limitCustomerQuestions(String(generated.reply || "Could you help me understand how that would work for my situation?").slice(0, 4000)); await admin.from("coach_conversation_messages").insert({ session_id: sessionId, organization_id: viewer.organizationId, speaker: "customer", content: customerReply }); return NextResponse.json({ reply: customerReply, shouldEnd: Boolean(generated.shouldEnd) });
     }
     if (action === "complete") {
       const { data: messages } = await client.from("coach_conversation_messages").select("speaker,content").eq("session_id", sessionId).order("created_at"); const { data: profileRow } = await client.from("coach_adaptive_profiles").select("*").eq("organization_id", viewer.organizationId).eq("user_id", viewer.id).maybeSingle(); const profile = profileFromRow(profileRow); const context = await approvedContext(client, viewer.organizationId, (messages || []).map((m: any) => m.content).join(" "));

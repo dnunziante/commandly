@@ -1,2 +1,25 @@
-"use client"; import { useState } from "react"; import { AppShell } from "@/components/app-shell"; import { PageHeader } from "@/components/page-header"; import { objections } from "@/lib/data"; import { ChevronDown, MessageSquareQuote } from "lucide-react"; import Link from "next/link";
-export default function ObjectionsPage(){const [selected,setSelected]=useState(0);return <AppShell title="Objection Handling"><PageHeader eyebrow="Conversation coaching" title="Turn hesitation into a helpful conversation" description="Use approved guidance for reference, then practice a live adaptive objection conversation."/><div className="grid grid-2"><div className="card"><label className="label">What did the customer say?</label><select className="input" value={selected} onChange={e=>setSelected(Number(e.target.value))}>{objections.map((o,i)=><option value={i} key={o.title}>{o.title}</option>)}</select><div className="section-heading"><h2>Common objections</h2></div>{objections.map((o,i)=><button key={o.title} onClick={()=>setSelected(i)} className="prompt" style={{width:"100%",background:i===selected?"#edf3ff":"white",border:"1px solid #e3e7ef",borderRadius:9,padding:13,marginBottom:8,textAlign:"left",display:"flex",justifyContent:"space-between"}}>{o.title}<ChevronDown size={16}/></button>)}</div><div className="card"><span className="badge blue"><MessageSquareQuote size={13}/> {objections[selected].type}</span><h2 style={{marginTop:15}}>Suggested response</h2><div className="callout"><p style={{color:"#14213d",fontSize:16,margin:0}}>“{objections[selected].response}”</p></div><h3 style={{marginTop:20}}>Follow-up question</h3><p>{objections[selected].followUp}</p><Link className="btn btn-primary" href="/coach/session?mode=objection">Practice this objection live</Link></div></div></AppShell>}
+import { AppShell } from "@/components/app-shell";
+import { ObjectionHandling, type ObjectionResponse } from "@/components/objection-handling";
+import { PageHeader } from "@/components/page-header";
+import { getViewer } from "@/lib/auth/viewer";
+import { objections as demoObjections } from "@/lib/data";
+import { isLocalDemoMode, isSupabaseConfigured } from "@/lib/supabase/config";
+import { createClient } from "@/lib/supabase/server";
+
+function splitResponse(body: string) {
+  const [response, followUp] = body.split(/\n(?:follow[- ]?up|question)\s*:/i, 2);
+  return { response: response.trim(), followUp: followUp?.trim() || "What would make the decision easier?" };
+}
+
+export default async function ObjectionsPage() {
+  let objections: ObjectionResponse[] = demoObjections.map((item, index) => ({ id: `demo-${index}`, ...item }));
+  if (!isLocalDemoMode() && isSupabaseConfigured()) {
+    const viewer = await getViewer();
+    if (viewer?.organizationId) {
+      const supabase = await createClient();
+      const { data } = await supabase.from("sales_content_items").select("id,title,body").eq("organization_id", viewer.organizationId).eq("content_type", "objection_response").eq("status", "published").order("updated_at", { ascending: false });
+      objections = (data || []).map((item) => ({ id: item.id, title: item.title, type: "Approved response", ...splitResponse(item.body) }));
+    }
+  }
+  return <AppShell title="Objection Handling"><PageHeader eyebrow="Conversation coaching" title="Turn hesitation into a helpful conversation" description="Use approved guidance for reference, then practice a live adaptive objection conversation."/><ObjectionHandling objections={objections}/></AppShell>;
+}

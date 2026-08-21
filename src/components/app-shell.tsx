@@ -91,7 +91,7 @@ export function AppShell({ children, title }: { children: React.ReactNode; title
           })}</div>
         </details>
         <details className="module-group" key={`coach-${pathname}`} open={coachSectionActive}>
-          <summary><span className="module-icon"><GraduationCap size={18}/></span><span>Sales Coach</span><span className="live-badge">Prototype</span><ChevronDown className="module-chevron" size={16}/></summary>
+          <summary><span className="module-icon"><GraduationCap size={18}/></span><span>Sales Coach</span><ChevronDown className="module-chevron" size={16}/></summary>
           <div className="module-links">{coachLinks.map(([label, href, Icon]) => {
             const active = pathname === href;
             return <Link className={active ? "active" : ""} href={href} key={href} onClick={() => setOpen(false)}><Icon size={18}/><span>{label}</span></Link>;

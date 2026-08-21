@@ -22,7 +22,7 @@ export function AdminCoachRubricForm({ scenarios, demo }: { scenarios: CoachScen
     <div><label className="label" htmlFor="rubric-scenario">Scenario</label><select className="input" id="rubric-scenario" name="scenarioId" required>{scenarios.map((scenario) => <option value={scenario.id} key={scenario.id}>{scenario.title}</option>)}</select></div>
     <div className="grid grid-3">{skills.map((skill) => <div key={skill}><label className="label" htmlFor={`rubric-${skill}`}>{skill}</label><input className="input" id={`rubric-${skill}`} name={`weight${skill}`} type="number" min="0" max="100" defaultValue={first?.rubricWeights[skill] ?? (skill === "Clarify" || skill === "Listen" ? 20 : 15)} required/></div>)}</div>
     <small className="field-help">Weights must total 100. Selecting another scenario keeps the displayed defaults editable before saving.</small>
-    {demo && <p className="demo-note">Preview mode does not write rubric changes.</p>}{state.error && <p className="form-error" role="alert">{state.error}</p>}{state.success && <p className="form-success" role="status">{state.success}</p>}
+    {demo && <p className="demo-note">Sign in to a workspace to save rubric changes.</p>}{state.error && <p className="form-error" role="alert">{state.error}</p>}{state.success && <p className="form-success" role="status">{state.success}</p>}
     <SaveButton/>
   </form>;
 }

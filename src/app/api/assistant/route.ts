@@ -7,6 +7,14 @@ import { formatCommunicationContext, getCommunicationContext } from "@/lib/rag/c
 
 type SearchChunk = { document_name: string; content: string; section: string | null; page_number: number | null; similarity: number };
 const MINIMUM_SIMILARITY = 0.35;
+function classifyQuestion(question: string, productNames: string[]) {
+  const normalized = question.toLowerCase();
+  const products = productNames.filter((name) => normalized.includes(name.toLowerCase()));
+  const competitorNames = ["ezgo", "club car", "yamaha", "evolution", "denago", "icon"].filter((name) => normalized.includes(name));
+  const objection = /price|cost|expensive|budget/.test(normalized) ? "Price" : /spouse|husband|wife|decision/.test(normalized) ? "Decision maker" : /think|wait|later|timing/.test(normalized) ? "Timing" : null;
+  const topic = objection ? "Objection handling" : competitorNames.length ? "Competitor comparison" : products.length ? "Product question" : /financ|payment/.test(normalized) ? "Financing" : /follow.?up|email|text/.test(normalized) ? "Follow-up" : "General";
+  return { products, competitorNames, objection, topic };
+}
 
 export async function POST(request: Request) {
   const viewer = await getViewer();
@@ -37,13 +45,17 @@ export async function POST(request: Request) {
 
     const results = ((chunks || []) as SearchChunk[]).filter((chunk) => chunk.similarity >= MINIMUM_SIMILARITY);
     const products = selectRelevantProducts(question, (productRows || []) as ApprovedProduct[]);
-    if (!results.length && !products.length) return NextResponse.json({ answer: "I do not have approved information in the Refyntra knowledge base to answer that question.", sources: [] });
+    const classification = classifyQuestion(question, (productRows || []).map((product) => product.name));
+    if (!results.length && !products.length) {
+      await supabase.from("assistant_interactions").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, question, topic: classification.topic, product_references: classification.products, competitor_references: classification.competitorNames, objection_category: classification.objection, grounded: false, unresolved: true });
+      return NextResponse.json({ answer: "I do not have approved information in the Refyntra knowledge base to answer that question.", sources: [] });
+    }
 
     const productContext = products.map((product, index) => `[P${index + 1}] ${formatProductContext(product)}`);
     const documentContext = results.map((chunk, index) => `[${index + 1}] ${chunk.document_name}${chunk.section ? ` — ${chunk.section}` : ""}${chunk.page_number ? `, page ${chunk.page_number}` : ""}\n${chunk.content}`);
     const sourceContext = [...productContext, ...documentContext].join("\n\n");
     const answer = await createGroundedAnswer(question, sourceContext, communication.standards, formatCommunicationContext(communication));
-    await supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" });
+    await Promise.all([supabase.from("performance_events").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, event_type: "assistant_question_answered" }), supabase.from("assistant_interactions").insert({ organization_id: viewer.organizationId, user_id: viewer.id, location_id: membership?.location_id || null, question, topic: classification.topic, product_references: classification.products, competitor_references: classification.competitorNames, objection_category: classification.objection, grounded: true, unresolved: false })]);
 
     const sourceKeys = new Set<string>();
     const documentSources = results.filter((chunk) => {

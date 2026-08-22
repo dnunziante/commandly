@@ -14,6 +14,9 @@ export type GrowthOpportunity = {
   actions: string[];
   measures: string[];
   score: GrowthScore;
+  lifecycleStatus?: string;
+  progress?: number;
+  dueDate?: string | null;
 };
 
 export type GrowthPlan = {

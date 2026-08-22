@@ -5,6 +5,17 @@ import { getViewer } from "@/lib/auth/viewer";
 import type { GrowthOutcome, GrowthPlan } from "@/lib/growth/data";
 import { createClient } from "@/lib/supabase/server";
 
+export async function updateGrowthOpportunityProgress(input: { slug: string; lifecycleStatus: string; progress: number; note?: string }) {
+  const viewer = await getViewer();
+  if (!viewer || viewer.demo) return { error: "Sign in to update opportunities." };
+  if (!["idea","under_review","approved","planned","in_progress","blocked","completed","validated","not_pursuing","archived"].includes(input.lifecycleStatus) || !Number.isInteger(input.progress) || input.progress < 0 || input.progress > 100) return { error: "Enter a valid status and progress." };
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("growth_opportunities").update({ lifecycle_status: input.lifecycleStatus, progress: input.progress, updated_at: new Date().toISOString() }).eq("organization_id", viewer.organizationId).eq("slug", input.slug).select("id").single();
+  if (error || !data) return { error: error?.message ?? "Opportunity could not be updated." };
+  await supabase.from("growth_opportunity_activity").insert({ organization_id: viewer.organizationId, opportunity_id: data.id, actor_id: viewer.id, activity_type: "progress_updated", description: input.note?.trim() || `Status changed to ${input.lifecycleStatus.replaceAll("_", " ")} at ${input.progress}%.` });
+  revalidatePath("/growth"); revalidatePath(`/growth/opportunities/${input.slug}`); return {};
+}
+
 type CreateInput = { opportunitySlug: string; title: string; locationId: string | null; locationName: string; owner: string; targetDate: string; targetMeasure: string; tasks: string[] };
 
 export async function createPersistentGrowthPlan(input: CreateInput): Promise<{ plan?: GrowthPlan; error?: string }> {

@@ -6,18 +6,26 @@ import { canManageOperations } from "@/lib/auth/permissions";
 import type { OperationsAlertRecord, OperationsChecklistRecord, OperationsHandoffRecord, OperationsIncidentRecord, OperationsProcedureRecord, OperationsScheduleRecord } from "@/lib/operations/data";
 import { getNextScheduleDate } from "@/lib/operations/schedules";
 import { createClient } from "@/lib/supabase/server";
+import { extractDocumentPages } from "@/lib/rag/chunking";
+import { createGeneratedChecklist, createRevisedProcedure } from "@/lib/rag/openai";
 
 const dbValue = (value: string) => value.toLowerCase().replaceAll(" ", "_");
 async function context() { const viewer = await getViewer(); if (!viewer || viewer.demo) return null; return { viewer, supabase: await createClient() }; }
 async function managerContext() { const ctx = await context(); return ctx && canManageOperations(ctx.viewer.role) ? ctx : null; }
 function refreshOperations() { ["/operations", "/operations/checklists", "/operations/procedures", "/operations/alerts", "/operations/schedules", "/operations/calendar", "/operations/performance", "/operations/handoffs", "/operations/incidents"].forEach((path) => revalidatePath(path)); }
 
-export async function saveOperationsChecklist(input: Omit<OperationsChecklistRecord, "id" | "createdAt">) {
+export type ChecklistSectionInput = { title: string; steps: string[] };
+export type GeneratedChecklistInput = { title: string; location: string; owner: string; dueDate: string; sections: ChecklistSectionInput[] };
+export async function saveOperationsChecklist(input: Omit<OperationsChecklistRecord, "id" | "createdAt"> & { sections?: ChecklistSectionInput[]; creationSource?: "manual" | "document" }) {
   const ctx = await context(); if (!ctx) return { error: "Sign in to save shared Operations work." };
   if (input.title.trim().length < 2 || input.owner.trim().length < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(input.dueDate) || !input.steps.length) return { error: "Add a title, owner, due date, and at least one step." };
-  const { data, error } = await ctx.supabase.from("operations_checklists").insert({ organization_id: ctx.viewer.organizationId, title: input.title.trim(), location_name: input.location, owner: input.owner.trim(), due_date: input.dueDate, created_by: ctx.viewer.id }).select("id,created_at").single();
+  const { data, error } = await ctx.supabase.from("operations_checklists").insert({ organization_id: ctx.viewer.organizationId, title: input.title.trim(), location_name: input.location, owner: input.owner.trim(), due_date: input.dueDate, created_by: ctx.viewer.id, creation_source: input.creationSource ?? "manual" }).select("id,created_at").single();
   if (error || !data) return { error: error?.message ?? "Checklist could not be created." };
-  const { data: steps, error: stepError } = await ctx.supabase.from("operations_checklist_steps").insert(input.steps.map((step, index) => ({ organization_id: ctx.viewer.organizationId, checklist_id: data.id, title: step.title.trim(), position: index }))).select("id,title,is_complete,position");
+  const sections = input.sections?.filter((section) => section.title.trim() && section.steps.length) ?? [];
+  const { data: sectionRows, error: sectionError } = sections.length ? await ctx.supabase.from("operations_checklist_sections").insert(sections.map((section, position) => ({ organization_id: ctx.viewer.organizationId, checklist_id: data.id, title: section.title.trim(), position }))).select("id,title,position") : { data: [], error: null };
+  if (sectionError) { await ctx.supabase.from("operations_checklists").delete().eq("id", data.id); return { error: sectionError.message }; }
+  const entries = sections.length ? sections.flatMap((section, sectionIndex) => section.steps.map((title, stepIndex) => ({ organization_id: ctx.viewer.organizationId, checklist_id: data.id, section_id: sectionRows?.[sectionIndex]?.id ?? null, title: title.trim(), position: sectionIndex * 100 + stepIndex }))) : input.steps.map((step, index) => ({ organization_id: ctx.viewer.organizationId, checklist_id: data.id, section_id: null, title: step.title.trim(), position: index }));
+  const { data: steps, error: stepError } = await ctx.supabase.from("operations_checklist_steps").insert(entries).select("id,title,is_complete,position");
   if (stepError) { await ctx.supabase.from("operations_checklists").delete().eq("id", data.id); return { error: stepError.message }; }
   refreshOperations(); return { record: { ...input, id: data.id, createdAt: data.created_at, steps: (steps ?? []).sort((a, b) => a.position - b.position).map((step) => ({ id: step.id, title: step.title, complete: step.is_complete })) } };
 }
@@ -40,6 +48,40 @@ export async function saveOperationsProcedure(input: OperationsProcedureRecord) 
   if (existing) await ctx.supabase.from("operations_procedure_steps").delete().eq("procedure_id", data.id).eq("organization_id", ctx.viewer.organizationId);
   const { error: stepError } = await ctx.supabase.from("operations_procedure_steps").insert(input.steps.map((title, position) => ({ organization_id: ctx.viewer.organizationId, procedure_id: data.id, title, position })));
   if (stepError) return { error: stepError.message }; refreshOperations(); return { record: { ...input, id: data.id, version: data.version, updatedAt: data.updated_at } };
+}
+
+export async function generateChecklistFromDocument(formData: FormData) {
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to generate checklists." };
+  const file = formData.get("file"); if (!(file instanceof File) || !file.size) return { error: "Choose a PDF, DOCX, Markdown, or text document." }; if (file.size > 4 * 1024 * 1024) return { error: "Document must be 4 MB or smaller." };
+  try { const pages = await extractDocumentPages(file); const sourceText = pages.map((page) => page.text).join("\n").trim().slice(0, 80_000); if (sourceText.length < 80) return { error: "No readable operational text was found." }; return { draft: await createGeneratedChecklist({ sourceName: file.name, sourceText, instruction: String(formData.get("instruction") || "") }) }; } catch (error) { return { error: error instanceof Error ? error.message : "Checklist generation failed." }; }
+}
+
+export async function approveGeneratedOperationsChecklist(input: GeneratedChecklistInput) {
+  const flattened = input.sections.flatMap((section) => section.steps).map((title) => ({ id: "", title, complete: false }));
+  return saveOperationsChecklist({ title: input.title, location: input.location, owner: input.owner, dueDate: input.dueDate, steps: flattened, sections: input.sections, creationSource: "document" });
+}
+
+export async function deleteOperationsProcedure(procedureId: string) {
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to delete procedures." };
+  if (!/^[0-9a-f-]{36}$/i.test(procedureId)) return { error: "Invalid procedure." };
+  const { error } = await ctx.supabase.from("operations_procedures").delete().eq("id", procedureId).eq("organization_id", ctx.viewer.organizationId);
+  if (error) return { error: error.code === "23503" ? "This procedure is used by a schedule or checklist and cannot be deleted yet." : error.message };
+  refreshOperations(); return {};
+}
+
+export async function createRevisedOperationsProcedure(formData: FormData) {
+  const ctx = await managerContext(); if (!ctx) return { error: "Manager access is required to create procedures." };
+  const file = formData.get("file");
+  if (!(file instanceof File) || file.size === 0) return { error: "Choose a PDF, DOCX, Markdown, or text document." };
+  if (file.size > 4 * 1024 * 1024) return { error: "Document must be 4 MB or smaller." };
+  try {
+    const pages = await extractDocumentPages(file); const sourceText = pages.map((page) => page.text).join("\n").trim().slice(0, 80_000);
+    if (sourceText.length < 80) return { error: "No readable procedure text was found in this document." };
+    const draft = await createRevisedProcedure({ sourceName: file.name, sourceText });
+    const created = await saveOperationsProcedure({ id: `new-${crypto.randomUUID()}`, ...draft, status: "Draft", version: 1, updatedAt: new Date().toISOString() });
+    if (created.error || !created.record) return { error: created.error ?? "The revised procedure could not be saved." };
+    return { record: created.record };
+  } catch (error) { return { error: error instanceof Error ? error.message : "The document could not be revised." }; }
 }
 
 export async function saveOperationsAlert(input: Omit<OperationsAlertRecord, "id" | "createdAt" | "history" | "status">) {
